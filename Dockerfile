@@ -29,14 +29,16 @@ ENV PORT=3000
 ENV HOSTNAME="0.0.0.0"
 ENV DATABASE_URL=file:/app/data/qrtags.db
 
-# Start command: init DB, create admin user, then start server
+# Start command: force schema sync, create admin user, then start server
+# --accept-data-loss: needed because old DB schema may differ from current Prisma schema
+# The app also has /api/db/migrate and /api/auth/init for runtime self-healing
 CMD sh -c "\
   mkdir -p /app/data && \
   export DATABASE_URL=file:/app/data/qrtags.db && \
   echo '[startup] Running database migrations...' && \
-  npx prisma db push --skip-generate && \
+  npx prisma db push --accept-data-loss --skip-generate 2>&1 && \
   echo '[startup] Creating admin user...' && \
-  node scripts/create-admin.cjs && \
+  node scripts/create-admin.cjs 2>&1 && \
   echo '[startup] Starting QRTags server...' && \
   exec node .next/standalone/server.js \
 "

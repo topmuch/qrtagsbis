@@ -13,7 +13,9 @@ export function middleware(req: NextRequest) {
     pathname === '/agence/login' ||
     pathname === '/login' ||
     pathname.startsWith('/api/auth') ||
-    pathname === '/api/init-demo'
+    pathname.startsWith('/api/db/') ||
+    pathname === '/api/init-demo' ||
+    pathname === '/api/health'
   ) {
     return NextResponse.next();
   }
