@@ -1,7 +1,23 @@
 import { NextRequest, NextResponse } from 'next/server';
-import prisma from '@/lib/prisma';
+import { db } from '@/lib/db';
 import bcrypt from 'bcryptjs';
 import { createSession, logLoginAttempt } from '@/lib/session';
+
+/**
+ * Safely log a login attempt - never throws
+ */
+async function safeLogLoginAttempt(params: {
+  userId?: string;
+  email: string;
+  success: boolean;
+  failureReason?: string;
+}) {
+  try {
+    await logLoginAttempt(params);
+  } catch (error) {
+    console.error('Failed to log login attempt:', error);
+  }
+}
 
 export async function POST(request: NextRequest) {
   const { email, password, role } = await request.json();
@@ -15,7 +31,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Rechercher l'utilisateur
-    const user = await prisma.user.findUnique({
+    const user = await db.user.findUnique({
       where: { email: email.toLowerCase() },
       include: {
         agency: true,
@@ -24,7 +40,7 @@ export async function POST(request: NextRequest) {
 
     if (!user) {
       // Log failed attempt - user not found
-      await logLoginAttempt({
+      await safeLogLoginAttempt({
         email,
         success: false,
         failureReason: 'Utilisateur non trouvé',
@@ -40,7 +56,7 @@ export async function POST(request: NextRequest) {
     const isValidPassword = user.password ? await bcrypt.compare(password, user.password) : false;
     if (!isValidPassword) {
       // Log failed attempt - wrong password
-      await logLoginAttempt({
+      await safeLogLoginAttempt({
         userId: user.id,
         email,
         success: false,
@@ -55,7 +71,7 @@ export async function POST(request: NextRequest) {
 
     // Vérifier le rôle
     if ((role === 'admin' || role === 'superadmin') && user.role !== 'superadmin') {
-      await logLoginAttempt({
+      await safeLogLoginAttempt({
         userId: user.id,
         email,
         success: false,
@@ -69,7 +85,7 @@ export async function POST(request: NextRequest) {
     }
 
     if (role === 'agency' && user.role !== 'agency' && user.role !== 'superadmin') {
-      await logLoginAttempt({
+      await safeLogLoginAttempt({
         userId: user.id,
         email,
         success: false,
@@ -86,7 +102,7 @@ export async function POST(request: NextRequest) {
     await createSession(user.id);
 
     // Log successful login
-    await logLoginAttempt({
+    await safeLogLoginAttempt({
       userId: user.id,
       email,
       success: true,
@@ -108,8 +124,8 @@ export async function POST(request: NextRequest) {
   } catch (error) {
     console.error('Login error:', error);
 
-    // Log error
-    await logLoginAttempt({
+    // Log error (wrapped in try/catch to prevent double-throw)
+    await safeLogLoginAttempt({
       email,
       success: false,
       failureReason: 'Erreur serveur',

@@ -239,6 +239,18 @@ export default function AdminLoginPage() {
     }
   }, [user, authLoading, isSuperAdmin, router]);
 
+  /* ─── Auto-initialize admin user on mount ─── */
+  useEffect(() => {
+    const initAdmin = async () => {
+      try {
+        await fetch('/api/auth/init', { method: 'POST' });
+      } catch {
+        // Silently fail - admin might already exist
+      }
+    };
+    initAdmin();
+  }, []);
+
   /* ─── Rotate testimonials every 5s ─── */
   useEffect(() => {
     const interval = setInterval(() => {
@@ -260,7 +272,13 @@ export default function AdminLoginPage() {
         body: JSON.stringify({ email, password, role: 'superadmin' }),
       });
 
-      const data = await response.json();
+      let data;
+      try {
+        data = await response.json();
+      } catch {
+        setError('Erreur de connexion au serveur. Vérifiez que le serveur est en cours d\'exécution.');
+        return;
+      }
 
       if (response.ok && data.success) {
         login(data.user);
@@ -270,7 +288,7 @@ export default function AdminLoginPage() {
       }
     } catch (err) {
       console.error('Login error:', err);
-      setError('Erreur de connexion. Veuillez réessayer.');
+      setError('Erreur de connexion au serveur. Vérifiez votre connexion réseau.');
     } finally {
       setLoading(false);
     }

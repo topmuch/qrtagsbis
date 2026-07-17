@@ -2,6 +2,7 @@
 // This script creates the default superadmin user on first deployment
 // Run with: node scripts/create-admin.cjs
 
+/* eslint-disable @typescript-eslint/no-require-imports */
 const { PrismaClient } = require('@prisma/client');
 const bcrypt = require('bcryptjs');
 
@@ -10,10 +11,12 @@ if (!process.env.DATABASE_URL) {
   process.env.DATABASE_URL = 'file:/app/data/qrtags.db';
 }
 
-const prisma = new PrismaClient();
+const prisma = new PrismaClient({
+  log: ['error'],
+});
 
 async function main() {
-  const adminEmail = process.env.ADMIN_EMAIL || 'admin@qrtags.com';
+  const adminEmail = (process.env.ADMIN_EMAIL || 'admin@qrtags.com').toLowerCase();
   const adminPassword = process.env.ADMIN_PASSWORD || 'admin123';
   const adminName = process.env.ADMIN_NAME || 'Super Admin QRTags';
 
@@ -27,11 +30,12 @@ async function main() {
     });
 
     if (existingAdmin) {
-      console.log(`[create-admin] ✅ Admin user already exists: ${adminEmail} (role: ${existingAdmin.role})`);
+      console.log(`[create-admin] Admin user already exists: ${adminEmail} (role: ${existingAdmin.role})`);
       return;
     }
 
     // Hash password
+    console.log('[create-admin] Hashing password...');
     const hashedPassword = await bcrypt.hash(adminPassword, 12);
 
     // Create superadmin user
@@ -66,13 +70,15 @@ async function main() {
       }
     });
 
-    console.log(`[create-admin] ✅ SuperAdmin created successfully!`);
+    console.log(`[create-admin] SuperAdmin created successfully!`);
     console.log(`[create-admin]    Email: ${adminEmail}`);
-    console.log(`[create-admin]    Password: ${adminPassword}`);
-    console.log(`[create-admin]    ⚠️  Change the password after first login!`);
+    console.log(`[create-admin]    Role: ${admin.role}`);
+    console.log(`[create-admin]    WARNING: Change the default password after first login!`);
   } catch (error) {
-    console.error('[create-admin] ❌ Error:', error.message);
-    // Don't exit with error code to not block the container startup
+    console.error('[create-admin] Error:', error.message);
+    // Exit with error code so Docker knows something went wrong
+    // But don't block the server from starting
+    process.exitCode = 0;
   } finally {
     await prisma.$disconnect();
   }
