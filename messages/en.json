@@ -1,0 +1,158 @@
+{
+  "common": {
+    "appName": "QRBag",
+    "tagline": "Never lose your luggage again"
+  },
+  "landing": {
+    "hero": {
+      "title": "Never lose your luggage again",
+      "subtitle": "A smart QR sticker to protect your belongings. No app. No battery. No GPS.",
+      "ctaHajj": "I am a pilgrim (Hajj)",
+      "ctaVoyageur": "I am a traveler"
+    },
+    "howItWorks": {
+      "title": "How does it work?",
+      "hajj": {
+        "title": "Hajj Version",
+        "step1": "Agency gives you QR stickers",
+        "step2": "Activate your luggage in 30 seconds",
+        "step3": "If lost, the finder contacts you directly"
+      },
+      "voyageur": {
+        "title": "Traveler Version",
+        "step1": "Order your stickers online",
+        "step2": "Stick them and activate before departure",
+        "step3": "Peace of mind throughout your trip"
+      }
+    },
+    "pricing": {
+      "title": "Simple and transparent pricing",
+      "voyageurSticker": {
+        "title": "Traveler Sticker",
+        "price": "€4",
+        "duration": "5 days",
+        "features": ["1 luggage", "Short-term protection", "Ideal for weekend"]
+      },
+      "voyageurTag": {
+        "title": "Traveler Tag",
+        "price": "€7",
+        "duration": "1 year",
+        "features": ["1 luggage", "Long-term protection", "Ideal for frequent travelers"]
+      },
+      "hajj": {
+        "title": "Hajj",
+        "price": "€10",
+        "duration": "2 months",
+        "features": ["3 luggage included", "1 cabin + 2 checked", "Managed by agency"]
+      }
+    },
+    "contact": {
+      "title": "Contact us",
+      "address": "Poissy, France",
+      "phone": "+33 7 45 34 93 39",
+      "email": "contact@qrbag.com"
+    }
+  },
+  "scan": {
+    "title": "Baggage of {name}",
+    "notFound": "Invalid QR code",
+    "notActivated": "This baggage has not been activated yet",
+    "expired": "This baggage has expired",
+    "blocked": "This baggage has been blocked",
+    "foundTitle": "Did you find this baggage?",
+    "foundSubtitle": "Help its owner recover it in a few clicks.",
+    "locationTitle": "Where is the baggage?",
+    "shareLocation": "Share my location",
+    "yourName": "Your name (optional)",
+    "message": "Message (optional)",
+    "sendButton": "Contact owner via WhatsApp",
+    "locations": {
+      "jedda": "Jeddah",
+      "medina": "Medina",
+      "mecca": "Mecca",
+      "airport": "Airport",
+      "hotel": "Hotel",
+      "trainStation": "Train station",
+      "other": "Other location"
+    },
+    "whatsappMessage": "Hello, I found your baggage! Here are the details:"
+  },
+  "activate": {
+    "hajj": {
+      "title": "Hajj Baggage Activation",
+      "subtitle": "Activate your baggage in 30 seconds",
+      "firstName": "First name",
+      "lastName": "Last name",
+      "whatsapp": "WhatsApp number (group leader)",
+      "whatsappPlaceholder": "+221 78 485 82 26",
+      "submit": "Activate my baggage",
+      "success": "Your {count} baggage items have been successfully activated!"
+    },
+    "voyageur": {
+      "title": "Traveler Baggage Activation",
+      "subtitle": "Protect your luggage for your trip",
+      "firstName": "First name",
+      "lastName": "Last name",
+      "flightNumber": "Flight number",
+      "flightPlaceholder": "AF1234",
+      "destination": "Destination",
+      "destinationPlaceholder": "Paris, Tokyo, New York...",
+      "whatsapp": "WhatsApp number",
+      "whatsappPlaceholder": "+33 6 12 34 56 78",
+      "submit": "Activate my baggage",
+      "success": "Your baggage has been successfully activated!"
+    }
+  },
+  "dashboard": {
+    "agency": {
+      "title": "Agency Dashboard",
+      "total": "Total baggage",
+      "scanned": "Scanned",
+      "pending": "Pending",
+      "lost": "Lost",
+      "found": "Found",
+      "searchPlaceholder": "Search for baggage...",
+      "declareLost": "Declare lost",
+      "declareFound": "Declare found",
+      "addUser": "Add secondary leader"
+    },
+    "admin": {
+      "title": "SuperAdmin",
+      "agencies": "Agencies",
+      "generateQR": "Generate QR",
+      "users": "Users",
+      "logs": "Scan logs",
+      "settings": "Settings",
+      "pages": "CMS Pages"
+    }
+  },
+  "status": {
+    "pending_activation": "Pending",
+    "active": "Active",
+    "scanned": "Scanned",
+    "lost": "Lost",
+    "found": "Found",
+    "blocked": "Blocked"
+  },
+  "finder": {
+    "ownerInfo": "Owner Information",
+    "fullName": "Full name",
+    "agency": "Agency",
+    "noAgency": "Unaffiliated",
+    "bagType": "Baggage type",
+    "tripDetails": "Travel Details",
+    "flightNum": "Flight N°",
+    "destination": "Destination",
+    "departureDate": "Departure date",
+    "notSet": "Not set",
+    "not_specified": "Not specified",
+    "shareGps": "SHARE MY GPS LOCATION",
+    "locating": "Locating...",
+    "geoError": "Unable to access location. Please try again.",
+    "lost_badge": "BAGGAGE REPORTED LOST!",
+    "lost_description": "This baggage has been reported as lost. Please help find it.",
+    "found_description": "Thank you for helping locate this baggage.",
+    "gps_security_note": "Your location will be sent securely.",
+    "success_title": "Wahoo!"
+  }
+}

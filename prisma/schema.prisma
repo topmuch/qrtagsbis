@@ -1,8 +1,5 @@
-// This is your Prisma schema file,
-// learn more about it in the docs: https://pris.ly/d/prisma-schema
-
-// Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
-// Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
+// QRTags - SaaS B2B de gestion d'objets perdus via QR codes
+// Prisma Schema - Multi-métiers, White-label, Mobile Money
 
 generator client {
   provider = "prisma-client-js"
@@ -13,20 +10,701 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
+// ═══════════════════════════════════════════
+// USERS & AUTHENTICATION
+// ═══════════════════════════════════════════
+
+// User model - supports superadmin, admin, staff, and agency users
 model User {
+  id              String        @id @default(cuid())
+  email           String        @unique
+  name            String?
+  password        String?
+  role            String        @default("agency") // "superadmin" | "admin" | "staff" | "agency"
+  agencyId        String?
+  agency          Agency?       @relation(fields: [agencyId], references: [id], onDelete: Cascade)
+  staffRole       String?       // "receptionniste" | "housekeeping" | "securite" | "agent" | null
+  permissions     String        @default("[]") // JSON array of permission strings
+  sessions        Session[]
+  loginLogs       LoginLog[]
+  assignedLeads   Lead[]        @relation("AssignedLeads")
+  observations    Observation[]
+  dailyReports    DailyReport[]
+  blogPosts       BlogPost[]
+  isActive        Boolean       @default(true)
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+}
+
+// Session model - secure HTTP-only cookie based sessions
+model Session {
+  id           String   @id @default(cuid())
+  userId       String
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userAgent    String?
+  ipAddress    String?
+  lastActivity DateTime @default(now())
+  expiresAt    DateTime
+  createdAt    DateTime @default(now())
+}
+
+// LoginLog model - audit trail for all login attempts
+model LoginLog {
+  id           String    @id @default(cuid())
+  userId       String?
+  user         User?     @relation(fields: [userId], references: [id], onDelete: SetNull)
+  email        String
+  success      Boolean   @default(false)
+  failureReason String?
+  ipAddress    String?
+  userAgent    String?
+  country      String?
+  city         String?
+  createdAt    DateTime  @default(now())
+}
+
+// ═══════════════════════════════════════════
+// AGENCY & MULTI-MÉTIER
+// ═══════════════════════════════════════════
+
+// AgencyType model - defines the business type with custom fields schema
+model AgencyType {
+  id            String    @id @default(cuid())
+  name          String    @unique // "hotel" | "bus" | "school" | "clinic" | "car_rental" | "luggage_storage" | "enterprise" | "event"
+  label         String    // Display name: "Hôtel", "Compagnie de Bus", etc.
+  icon          String    // Icon name from Lucide
+  description   String?
+  customFields  String    @default("[]") // JSON: [{fieldName, fieldLabel, fieldType, isRequired, sortOrder}]
+  color         String    @default("#2563EB") // Primary color for this type
+  isActive      Boolean   @default(true)
+  sortOrder     Int       @default(0)
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+  agencies     Agency[]
+}
+
+// Agency model - multi-métier establishments
+model Agency {
+  id                String        @id @default(cuid())
+  name              String
+  slug              String        @unique
+  agencyTypeId      String
+  agencyType        AgencyType    @relation(fields: [agencyTypeId], references: [id])
+  email             String?
+  phone             String?
+  address           String?
+  city              String?
+  country           String?
+
+  // White-label customization
+  logoUrl           String?
+  primaryColor      String        @default("#2563EB")
+  secondaryColor    String        @default("#F59E0B")
+  customMessage     String?       // Custom message shown on scan page
+  contactEmail      String?
+  contactPhone      String?
+
+  // Status & Onboarding
+  active            Boolean       @default(true)
+  onboardingCompleted Boolean     @default(false)
+  onboardingStep    Int           @default(0) // Current step in onboarding wizard
+
+  // Relations
+  users             User[]
+  tags              Tag[]
+  invoices          Invoice[]
+  subscription      Subscription?
+  wallet            Wallet?
+  messages          Message[]       @relation("AgencyMessages")
+  notifications     Notification[]  @relation("AgencyNotifications")
+  advertisements    Advertisement[] @relation("AgencyAdvertisements")
+  bookings          Booking[]
+
+  createdAt         DateTime      @default(now())
+  updatedAt         DateTime      @updatedAt
+}
+
+// ═══════════════════════════════════════════
+// TAGS (QR CODES) - Core Entity
+// ═══════════════════════════════════════════
+
+// Tag model - replaces Baggage, the core entity for object tracking
+model Tag {
+  id                String    @id @default(cuid())
+  serialNumber      String    @unique // e.g. TAG-HOTEL-MLQGY7, TAG-BUS-K9X2P4
+  qrCodeUrl         String?   // URL to QR code image
+
+  // Tag classification
+  tagType           String    @default("standard") // "standard" | "premium" | "disposable"
+
+  // Ownership
+  agencyId          String?
+  agency            Agency?   @relation(fields: [agencyId], references: [id], onDelete: SetNull)
+  endUserId         String?   // Link to EndUser if activated by individual
+
+  // Status lifecycle: created → activated → scanned → lost → found / blocked / expired
+  status            String    @default("created") // "created" | "activated" | "scanned" | "lost" | "found" | "blocked" | "expired"
+
+  // Dynamic data - JSON based on agency type custom fields
+  customData        String    @default("{}") // JSON: {guest_name, room_number, ...} per agency type
+
+  // Core fields (common across all types)
+  ownerName         String?
+  ownerPhone        String?
+  ownerEmail        String?
+  itemName          String?   // Description of the tagged item
+  itemDescription   String?   // Detailed description
+  itemCategory      String?   // "bagage" | "electronique" | "documents" | "vetements" | "autres"
+
+  // Location context
+  locationBuilding  String?   // Building / zone name
+  locationRoom      String?   // Room / area number
+  locationNote      String?   // Additional location info
+
+  // Timestamps
+  activatedAt       DateTime?
+  expiresAt         DateTime?
+  lastScanDate      DateTime?
+  lastLocation      String?
+  declaredLostAt    DateTime?
+  foundAt           DateTime?
+
+  // Founder information
+  founderName       String?
+  founderPhone      String?
+  founderEmail      String?
+  founderMessage    String?
+  founderAt         DateTime?
+
+  // Set grouping (for batch activation)
+  setId             String?   // Groups tags together (e.g., SET-HOTEL-2024-001)
+
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+
+  // Relations
+  scanLogs          ScanLog[]
+  bookings          Booking[]
+}
+
+// ═══════════════════════════════════════════
+// BOOKINGS / ACTIVATIONS
+// ═══════════════════════════════════════════
+
+// Booking model - activation record when a tag is assigned to an object/person
+model Booking {
+  id            String    @id @default(cuid())
+  tagId         String
+  tag           Tag       @relation(fields: [tagId], references: [id], onDelete: Cascade)
+  agencyId      String
+  agency        Agency    @relation(fields: [agencyId], references: [id])
+
+  // Dynamic data captured during activation captured during activation (same schema as AgencyType.customFields)
+  customData    String    @default("{}") // JSON with field values
+
+  // Status
+  status        String    @default("active") // "active" | "completed" | "cancelled"
+
+  activatedAt   DateTime  @default(now())
+  completedAt   DateTime?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+}
+
+// ═══════════════════════════════════════════
+// SCAN LOG
+// ═══════════════════════════════════════════
+
+// ScanLog model - tracks all scans for audit
+model ScanLog {
+  id          String   @id @default(cuid())
+  tagId       String
+  tag         Tag      @relation(fields: [tagId], references: [id], onDelete: Cascade)
+
+  // Scanner info
+  scannedBy   String?  // "finder" | "owner" | "staff"
+  scannerId   String?  // User ID if staff
+  scanType    String   @default("finder") // "finder_scan" | "owner_check" | "staff_scan"
+
+  // Location
+  ipAddress   String?
+  country     String?
+  city        String?
+  latitude    Float?
+  longitude   Float?
+  location    String?
+
+  // Finder message
+  notes       String?  // Optional message from finder
+
+  // AI fields
+  whatsappStatus  String?
+  aiAnalysis      String?   // JSON
+  groqUsed        Boolean   @default(false)
+  groqLatencyMs   Int?
+  groqModelUsed   String?
+  wakitMessageId  String?
+
+  // Scan context
+  context     String?   // "reception" | "housekeeping" | "security" | "public"
+
+  createdAt   DateTime @default(now())
+}
+
+// ═══════════════════════════════════════════
+// SUBSCRIPTIONS & PAYMENTS
+// ═══════════════════════════════════════════
+
+// Subscription model - agency subscription plans
+model Subscription {
+  id          String    @id @default(cuid())
+  agencyId    String    @unique
+  agency      Agency    @relation(fields: [agencyId], references: [id], onDelete: Cascade)
+
+  plan        String    @default("starter") // "starter" | "pro" | "enterprise"
+  status      String    @default("trial") // "trial" | "active" | "past_due" | "cancelled" | "expired"
+
+  startDate   DateTime  @default(now())
+  endDate     DateTime?
+  trialEndsAt DateTime?
+
+  // Plan limits
+  maxTags     Int       @default(50)   // Max tags allowed
+  maxUsers    Int       @default(5)    // Max staff users
+  maxScans    Int       @default(1000) // Max scans per month
+
+  // Pricing
+  amount      Float     @default(0)
+  currency    String    @default("XOF") // FCFA
+  billingCycle String   @default("monthly") // "monthly" | "yearly"
+
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  payments    Payment[]
+  invoices    Invoice[]
+}
+
+// Payment model - tracks all payments
+model Payment {
+  id              String       @id @default(cuid())
+  agencyId        String
+  subscriptionId  String?
+  subscription    Subscription? @relation(fields: [subscriptionId], references: [id])
+
+  amount          Float
+  currency        String       @default("XOF")
+  method          String       // "wave" | "orange_money" | "mtn_money" | "cinetpay" | "card" | "bank_transfer"
+  status          String       @default("pending") // "pending" | "completed" | "failed" | "refunded"
+  transactionId   String?      // External payment reference
+  phoneNumber     String?      // Mobile Money phone number
+  description     String?
+
+  paidAt          DateTime?
+  createdAt       DateTime     @default(now())
+  updatedAt       DateTime     @updatedAt
+}
+
+// ═══════════════════════════════════════════
+// WALLET (for agency credits)
+// ═══════════════════════════════════════════
+
+// Wallet model - agency wallet for prepaid credits
+model Wallet {
+  id              String    @id @default(cuid())
+  agencyId        String    @unique
+  agency          Agency    @relation(fields: [agencyId], references: [id], onDelete: Cascade)
+
+  balance         Float     @default(0)
+  totalEarned     Float     @default(0)
+  totalWithdrawn  Float     @default(0)
+  currency        String    @default("XOF")
+
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  transactions    WalletTransaction[]
+}
+
+// WalletTransaction model - wallet transaction history
+model WalletTransaction {
+  id              String   @id @default(cuid())
+  walletId        String
+  wallet          Wallet   @relation(fields: [walletId], references: [id], onDelete: Cascade)
+  agencyId        String
+
+  transactionType String   // "credit" | "debit" | "refund" | "bonus"
+  amount          Float
+  description     String
+  status          String   @default("completed") // "pending" | "completed" | "failed"
+
+  referenceId     String?  // Related entity ID (payment, subscription, etc.)
+  referenceType   String?  // "payment" | "subscription" | "refund" | "bonus"
+
+  createdAt       DateTime @default(now())
+}
+
+// ═══════════════════════════════════════════
+// MESSAGING & NOTIFICATIONS
+// ═══════════════════════════════════════════
+
+// Message model - contact, partner requests, support
+model Message {
+  id                String   @id @default(cuid())
+  type              String   // "contact" | "partenaire" | "assistance_agence" | "reponse_assistance" | "message_superadmin" | "finder_message"
+  status            String   @default("non_lu") // "non_lu" | "lu" | "traite"
+  senderName        String?
+  senderEmail       String?
+  senderPhone       String?
+  agencyId          String?
+  agency            Agency?  @relation("AgencyMessages", fields: [agencyId], references: [id])
+  recipientAgencyId String?
+  subject           String?
+  content           String
+  tagId             String?  // Related tag if message is about a specific tag
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+}
+
+// Notification model - real-time alerts
+model Notification {
+  id          String   @id @default(cuid())
+  type        String   // "tag_declared_lost" | "tag_found" | "new_assistance_message" | "urgent_scan" | "payment_received" | "subscription_expiring"
+  userId      String?
+  agencyId    String?
+  agency      Agency?  @relation("AgencyNotifications", fields: [agencyId], references: [id])
+  tagId       String?
+  message     String
+  data        String?  // JSON additional data
+  read        Boolean  @default(false)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+// ═══════════════════════════════════════════
+// SYSTEM & SETTINGS
+// ═══════════════════════════════════════════
+
+// Setting model - system configuration
+model Setting {
   id        String   @id @default(cuid())
-  email     String   @unique
-  name      String?
+  key       String   @unique
+  value     String
+  updatedAt DateTime @updatedAt
+}
+
+// FeatureFlag model - modular feature toggles
+model FeatureFlag {
+  id          String   @id @default(cuid())
+  key         String   @unique
+  label       String
+  description String
+  category    String   @default("general") // "communication" | "geolocation" | "export" | "notifications" | "payment" | "ai"
+  enabled     Boolean  @default(false)
+  icon        String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+// EmailSettings model - SMTP configuration
+model EmailSettings {
+  id              String   @id @default(cuid())
+  provider        String   @default("console")
+  fromEmail       String   @default("noreply@qrtags.com")
+  fromName        String   @default("QRTags")
+  recipientEmail  String?
+  smtpHost        String?
+  smtpPort        Int?
+  smtpUser        String?
+  smtpPassword    String?
+  smtpEncryption  String   @default("tls")
+  isActive        Boolean  @default(true)
+  lastTestAt      DateTime?
+  lastTestStatus  String?
+  lastTestError   String?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+}
+
+// EmailLog model - tracks all sent emails
+model EmailLog {
+  id          String   @id @default(cuid())
+  to          String
+  subject     String
+  type        String   // "verification" | "password_reset" | "notification" | "invoice" | "test" | "welcome"
+  status      String   @default("pending")
+  error       String?
+  userId      String?
+  agencyId    String?
+  data        String?
+  sentAt      DateTime?
+  createdAt   DateTime @default(now())
+}
+
+// EmailToken model - for email verification and password reset
+model EmailToken {
+  id        String   @id @default(cuid())
+  email     String
+  token     String   @unique
+  type      String   // "email_verification" | "password_reset"
+  code      String?
+  expiresAt DateTime
+  used      Boolean  @default(false)
+  usedAt    DateTime?
+  createdAt DateTime @default(now())
+}
+
+// Invoice model - for agency billing
+model Invoice {
+  id            String       @id @default(cuid())
+  number        String       @unique
+  agencyId      String
+  agency        Agency       @relation(fields: [agencyId], references: [id])
+  subscriptionId String?
+  subscription  Subscription? @relation(fields: [subscriptionId], references: [id])
+  amount        Float
+  currency      String       @default("XOF")
+  status        String       @default("pending") // "pending" | "paid" | "cancelled"
+  description   String?
+  items         String       // JSON array of invoice items
+  dueDate       DateTime?
+  paidAt        DateTime?
+  paymentMethod String?
+  pdfUrl        String?
+  createdAt     DateTime     @default(now())
+  updatedAt     DateTime     @updatedAt
+}
+
+// ═══════════════════════════════════════════
+// CRM & MARKETING
+// ═══════════════════════════════════════════
+
+// Lead model - CRM leads/prospects
+model Lead {
+  id            String        @id @default(cuid())
+  name          String
+  email         String
+  phone         String?
+  company       String?
+  agencyTypeId  String?       // Interested agency type
+  status        String        @default("new") // "new" | "contacted" | "in_discussion" | "qualified" | "converted" | "lost"
+  source        String?       // "website" | "referral" | "social" | "event" | "other"
+  notes         String?
+  agencyId      String?
+  assignedToId  String?
+  assignedTo    User?         @relation("AssignedLeads", fields: [assignedToId], references: [id], onDelete: SetNull)
+  observations  Observation[]
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
+}
+
+// Observation model - tracks interactions with leads
+model Observation {
+  id        String   @id @default(cuid())
+  leadId    String
+  lead      Lead     @relation(fields: [leadId], references: [id], onDelete: Cascade)
+  type      String   // "note" | "rdv" | "appel" | "email" | "whatsapp"
+  content   String
+  date      DateTime @default(now())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+}
+
+// DailyReport model - agent daily activity reports
+model DailyReport {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  date      DateTime @default(now())
+  content   String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([userId, date])
+}
+
+// ═══════════════════════════════════════════
+// CONTENT & ADVERTISING
+// ═══════════════════════════════════════════
+
+// Advertisement model - promotional banners
+model Advertisement {
+  id          String   @id @default(cuid())
+  title       String
+  description String?
+  imageUrl    String
+  linkUrl     String?
+  linkTarget  String   @default("_blank")
+  position    String   @default("footer")
+  targetScope String   @default("all") // "all" | "agency" | "agency_type"
+  agencyId    String?
+  agency      Agency?  @relation("AgencyAdvertisements", fields: [agencyId], references: [id])
+  agencyTypeId String?  // Target specific agency type
+  startDate   DateTime
+  endDate     DateTime?
+  status      String   @default("draft") // "draft" | "active" | "paused" | "expired"
+  priority    Int      @default(0)
+  impressions Int      @default(0)
+  clicks      Int      @default(0)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  adImpressions AdImpression[]
+}
+
+// AdImpression model - tracks each impression and click
+model AdImpression {
+  id              String        @id @default(cuid())
+  advertisementId String
+  advertisement   Advertisement @relation(fields: [advertisementId], references: [id], onDelete: Cascade)
+  userId          String?
+  agencyId        String?
+  userRole        String?
+  action          String        // "impression" | "click"
+  ipAddress       String?
+  userAgent       String?
+  createdAt       DateTime      @default(now())
+}
+
+// BlogPost model - blog for agencies
+model BlogPost {
+  id          String   @id @default(cuid())
+  title       String
+  slug        String   @unique
+  content     String
+  excerpt     String?
+  coverImage  String?
+  category    String   @default("actualites") // "actualites" | "conseils" | "guides" | "mises_a_jour"
+  status      String   @default("draft") // "draft" | "published"
+  publishedAt DateTime?
+  authorId    String?
+  author      User?    @relation(fields: [authorId], references: [id], onDelete: SetNull)
+  views       Int      @default(0)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  blogViews   BlogView[]
+}
+
+// BlogView model - track article views
+model BlogView {
+  id        String   @id @default(cuid())
+  postId    String
+  post      BlogPost @relation(fields: [postId], references: [id], onDelete: Cascade)
+  userId    String?
+  agencyId  String?
+  ipAddress String?
+  userAgent String?
+  createdAt DateTime @default(now())
+}
+
+// ═══════════════════════════════════════════
+// SYSTEM MONITORING
+// ═══════════════════════════════════════════
+
+// SystemLog model - centralized system logging
+model SystemLog {
+  id        String   @id @default(cuid())
+  level     String   // "info" | "warn" | "error" | "fatal"
+  message   String
+  source    String
+  metadata  String?
+  createdAt DateTime @default(now())
+
+  @@index([level])
+  @@index([source])
+  @@index([createdAt])
+}
+
+// Page model - CMS pages
+model Page {
+  id        String   @id @default(cuid())
+  slug      String   @unique
+  title     String
+  content   String
+  published Boolean  @default(false)
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 }
 
-model Post {
+// Banner model - dashboard announcements
+model Banner {
   id        String   @id @default(cuid())
-  title     String
-  content   String?
-  published Boolean  @default(false)
-  authorId  String
+  type      String   // "header" | "footer"
+  content   String
+  active    Boolean  @default(true)
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+}
+
+// LossAlert model - proactive loss detection alerts
+model LossAlert {
+  id          String   @id @default(cuid())
+  tagId       String
+  reference   String   // Denormalized for quick lookup
+  alertType   String   @default("no_scan_after_activation") // "no_scan_after_activation" | "scan_in_unusual_location"
+  message     String
+  dismissed   Boolean  @default(false)
+  dismissedAt DateTime?
+  createdAt   DateTime @default(now())
+}
+
+// Checklist model - public inventory checklists
+model Checklist {
+  id                String   @id @default(cuid())
+  code              String   @unique
+  verificationKey   String
+  firstName         String
+  lastName          String
+  email             String
+  departureDate     String
+  destinationCountry String
+  items             String   // JSON
+  itemsCount        Int      @default(0)
+  photoPath         String?
+  photoSizeBytes    Int      @default(0)
+  pdfPath           String?
+  pdfSizeBytes      Int      @default(0)
+  viewCount         Int      @default(0)
+  lastViewedAt      DateTime?
+  emailSent         Boolean  @default(false)
+  emailSentAt       DateTime?
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  @@index([code])
+  @@index([email])
+  @@index([createdAt])
+}
+
+// Review model - user reviews/testimonials
+model Review {
+  id          String   @id @default(cuid())
+  name        String
+  location    String?
+  rating      Int
+  title       String?
+  content     String
+  tagRef      String?
+  isFeatured  Boolean  @default(false)
+  isApproved  Boolean  @default(false)
+  response    String?
+  language    String   @default("fr")
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([isApproved])
+  @@index([isFeatured])
+  @@index([createdAt])
+}
+
+// SMSCredits model - SMS credit balance per agency
+model SMSCredits {
+  id              String   @id @default(cuid())
+  agencyId        String   @unique
+  balance         Int      @default(0)
+  totalPurchased  Int      @default(0)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
 }

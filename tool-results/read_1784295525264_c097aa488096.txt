@@ -1,0 +1,674 @@
+     1→'use client';
+     2→
+     3→import { useState, useEffect } from 'react';
+     4→import { useRouter } from 'next/navigation';
+     5→import Link from 'next/link';
+     6→import { useAuth } from '@/contexts/AuthContext';
+     7→import { motion, AnimatePresence } from 'framer-motion';
+     8→import {
+     9→  Mail,
+    10→  Lock,
+    11→  Eye,
+    12→  EyeOff,
+    13→  ArrowRight,
+    14→  Loader2,
+    15→  Building2,
+    16→  QrCode,
+    17→  Plane,
+    18→  Luggage,
+    19→  Globe,
+    20→  Fingerprint,
+    21→} from 'lucide-react';
+    22→
+    23→/* ══════════════════════════════════════════════════════════
+    24→   DATA
+    25→   ══════════════════════════════════════════════════════════ */
+    26→
+    27→const STATS = [
+    28→  { value: '2M+', label: 'Bagages protégés' },
+    29→  { value: '850+', label: 'Agences partenaires' },
+    30→  { value: '45+', label: 'Pays couverts' },
+    31→  { value: '99.9%', label: 'Disponibilité' },
+    32→];
+    33→
+    34→const TESTIMONIALS = [
+    35→  {
+    36→    name: 'Fatou Diallo',
+    37→    role: 'Agence Hajj Express',
+    38→    text: 'QRBag a transformé notre gestion de bagages. Zéro perte depuis 2 ans.',
+    39→  },
+    40→  {
+    41→    name: 'Moussa Koné',
+    42→    role: 'Voyages Sahel',
+    43→    text: 'Le dashboard est simple et efficace. Nos clients sont rassurés.',
+    44→  },
+    45→];
+    46→
+    47→/* ══════════════════════════════════════════════════════════
+    48→   FLOATING ICON COMPONENT
+    49→   ══════════════════════════════════════════════════════════ */
+    50→
+    51→function FloatingIcon({
+    52→  icon: Icon,
+    53→  className,
+    54→  delay = 0,
+    55→  duration = 6,
+    56→}: {
+    57→  icon: React.ElementType;
+    58→  className?: string;
+    59→  delay?: number;
+    60→  duration?: number;
+    61→}) {
+    62→  return (
+    63→    <motion.div
+    64→      className={`absolute ${className}`}
+    65→      initial={{ opacity: 0, scale: 0.6 }}
+    66→      animate={{
+    67→        opacity: [0.08, 0.18, 0.08],
+    68→        scale: [0.85, 1.1, 0.85],
+    69→        y: [0, -18, 0],
+    70→        rotate: [0, 8, -4, 0],
+    71→      }}
+    72→      transition={{
+    73→        duration,
+    74→        delay,
+    75→        repeat: Infinity,
+    76→        ease: 'easeInOut',
+    77→      }}
+    78→    >
+    79→      <Icon className="w-full h-full text-yellow-300/40" strokeWidth={1.2} />
+    80→    </motion.div>
+    81→  );
+    82→}
+    83→
+    84→/* ══════════════════════════════════════════════════════════
+    85→   ANIMATED TESTIMONIAL
+    86→   ══════════════════════════════════════════════════════════ */
+    87→
+    88→function AnimatedTestimonial({
+    89→  testimonial,
+    90→  isActive,
+    91→}: {
+    92→  testimonial: (typeof TESTIMONIALS)[number];
+    93→  isActive: boolean;
+    94→}) {
+    95→  return (
+    96→    <AnimatePresence mode="wait">
+    97→      {isActive && (
+    98→        <motion.div
+    99→          key={testimonial.name}
+   100→          initial={{ opacity: 0, y: 12 }}
+   101→          animate={{ opacity: 1, y: 0 }}
+   102→          exit={{ opacity: 0, y: -12 }}
+   103→          transition={{ duration: 0.45, ease: 'easeOut' }}
+   104→          className="space-y-3"
+   105→        >
+   106→          <p className="text-white/60 text-sm italic leading-relaxed">
+   107→            &ldquo;{testimonial.text}&rdquo;
+   108→          </p>
+   109→          <div className="flex items-center gap-3">
+   110→            <div className="w-9 h-9 rounded-full bg-gradient-to-br from-yellow-400 to-yellow-600 flex items-center justify-center shadow-lg shadow-amber-700/30">
+   111→              <span className="text-white text-xs font-bold">
+   112→                {testimonial.name
+   113→                  .split(' ')
+   114→                  .map((n) => n[0])
+   115→                  .join('')}
+   116→              </span>
+   117→            </div>
+   118→            <div>
+   119→              <p className="text-white/85 text-xs font-medium">
+   120→                {testimonial.name}
+   121→              </p>
+   122→              <p className="text-white/35 text-[10px]">{testimonial.role}</p>
+   123→            </div>
+   124→          </div>
+   125→        </motion.div>
+   126→      )}
+   127→    </AnimatePresence>
+   128→  );
+   129→}
+   130→
+   131→/* ══════════════════════════════════════════════════════════
+   132→   MAIN COMPONENT
+   133→   ══════════════════════════════════════════════════════════ */
+   134→
+   135→export default function AgenceLoginPage() {
+   136→  const router = useRouter();
+   137→  const { user, login, loading: authLoading, isAgency, isSuperAdmin } = useAuth();
+   138→
+   139→  const [email, setEmail] = useState('');
+   140→  const [password, setPassword] = useState('');
+   141→  const [showPassword, setShowPassword] = useState(false);
+   142→  const [error, setError] = useState('');
+   143→  const [loading, setLoading] = useState(false);
+   144→  const [rememberMe, setRememberMe] = useState(false);
+   145→  const [focusedField, setFocusedField] = useState<string | null>(null);
+   146→  const [activeTestimonial, setActiveTestimonial] = useState(0);
+   147→
+   148→  // Redirect if already logged in as agency
+   149→  useEffect(() => {
+   150→    if (authLoading) return;
+   151→    if (user && isAgency) {
+   152→      router.replace('/agence/tableau-de-bord');
+   153→    }
+   154→  }, [user, authLoading, isAgency, router]);
+   155→
+   156→  // Rotate testimonials every 5s
+   157→  useEffect(() => {
+   158→    const interval = setInterval(() => {
+   159→      setActiveTestimonial((prev) => (prev + 1) % TESTIMONIALS.length);
+   160→    }, 5000);
+   161→    return () => clearInterval(interval);
+   162→  }, []);
+   163→
+   164→  const handleSubmit = async (e: React.FormEvent) => {
+   165→    e.preventDefault();
+   166→    setError('');
+   167→    setLoading(true);
+   168→
+   169→    try {
+   170→      const response = await fetch('/api/auth/login', {
+   171→        method: 'POST',
+   172→        headers: { 'Content-Type': 'application/json' },
+   173→        body: JSON.stringify({ email, password, role: 'agency' }),
+   174→      });
+   175→
+   176→      const data = await response.json();
+   177→
+   178→      if (response.ok && data.success) {
+   179→        login(data.user);
+   180→        router.push('/agence/tableau-de-bord');
+   181→      } else {
+   182→        setError(data.error || 'Identifiants incorrects');
+   183→      }
+   184→    } catch (err) {
+   185→      console.error('Login error:', err);
+   186→      setError('Erreur de connexion. Veuillez réessayer.');
+   187→    } finally {
+   188→      setLoading(false);
+   189→    }
+   190→  };
+   191→
+   192→  const fillDemo = () => {
+   193→    setEmail('agence@qrbag.com');
+   194→    setPassword('agence123');
+   195→  };
+   196→
+   197→  /* ── Framer Motion Variants ── */
+   198→  const containerVariants = {
+   199→    hidden: { opacity: 0 },
+   200→    visible: {
+   201→      opacity: 1,
+   202→      transition: { staggerChildren: 0.08, delayChildren: 0.1 },
+   203→    },
+   204→  };
+   205→
+   206→  const itemVariants = {
+   207→    hidden: { opacity: 0, y: 18 },
+   208→    visible: {
+   209→      opacity: 1,
+   210→      y: 0,
+   211→      transition: { duration: 0.5, ease: [0.22, 1, 0.36, 1] },
+   212→    },
+   213→  };
+   214→
+   215→  return (
+   216→    <div className="min-h-screen flex flex-col lg:flex-row">
+   217→      {/* ══════════════════════════════════════════════════
+   218→          LEFT PANEL — Emerald Immersive (desktop only)
+   219→          ══════════════════════════════════════════════════ */}
+   220→      <div className="relative hidden lg:flex lg:w-[52%] min-h-screen flex-col overflow-hidden">
+   221→        {/* Base gradient */}
+   222→        <div className="absolute inset-0">
+   223→          <div className="absolute inset-0 bg-gradient-to-br from-[#0033a8] via-[#0047d6] to-[#0047d6]" />
+   224→          {/* Secondary depth gradient */}
+   225→          <div
+   226→            className="absolute inset-0 bg-gradient-to-t from-[#1a1a1a]/80 via-transparent to-[#0033a8]/60"
+   227→          />
+   228→        </div>
+   229→
+   230→        {/* Animated gradient orbs */}
+   231→        <div className="absolute top-[15%] -left-16 w-[340px] h-[340px] rounded-full bg-yellow-400/15 blur-[100px] animate-pulse" />
+   232→        <div
+   233→          className="absolute bottom-[20%] right-[-40px] w-[400px] h-[400px] rounded-full bg-yellow-500/10 blur-[120px] animate-pulse"
+   234→          style={{ animationDelay: '1.2s' }}
+   235→        />
+   236→        <div
+   237→          className="absolute top-[55%] left-[35%] w-[500px] h-[500px] rounded-full bg-yellow-300/8 blur-[150px] animate-pulse"
+   238→          style={{ animationDelay: '2.4s' }}
+   239→        />
+   240→
+   241→        {/* Gold accent orb — subtle */}
+   242→        <div
+   243→          className="absolute bottom-[10%] left-[15%] w-[200px] h-[200px] rounded-full blur-[120px] animate-pulse"
+   244→          style={{ backgroundColor: 'rgba(197, 166, 67, 0.08)', animationDelay: '0.6s' }}
+   245→        />
+   246→
+   247→        {/* Grid pattern overlay */}
+   248→        <div
+   249→          className="absolute inset-0 opacity-[0.035]"
+   250→          style={{
+   251→            backgroundImage: `
+   252→              linear-gradient(rgba(255,255,255,0.15) 1px, transparent 1px),
+   253→              linear-gradient(90deg, rgba(255,255,255,0.15) 1px, transparent 1px)
+   254→            `,
+   255→            backgroundSize: '64px 64px',
+   256→          }}
+   257→        />
+   258→
+   259→        {/* Floating travel silhouettes */}
+   260→        <FloatingIcon icon={Globe} className="top-[18%] right-[12%] w-14 h-14" delay={0} duration={7} />
+   261→        <FloatingIcon icon={Plane} className="top-[32%] left-[8%] w-11 h-11" delay={1.5} duration={8} />
+   262→        <FloatingIcon icon={Luggage} className="bottom-[28%] right-[18%] w-12 h-12" delay={2.8} duration={6.5} />
+   263→        <FloatingIcon icon={QrCode} className="top-[60%] left-[22%] w-10 h-10" delay={0.8} duration={9} />
+   264→        <FloatingIcon icon={Plane} className="bottom-[42%] left-[55%] w-8 h-8" delay={3.5} duration={7.5} />
+   265→        <FloatingIcon icon={Globe} className="top-[12%] left-[42%] w-7 h-7" delay={4.2} duration={8.5} />
+   266→
+   267→        {/* Content */}
+   268→        <div className="relative z-10 flex flex-col h-full p-10 xl:p-14">
+   269→          {/* Top: Logo in glass-morphism frame */}
+   270→          <div className="flex items-center">
+   271→            <Link href="/" className="group">
+   272→              <motion.div
+   273→                className="w-[76px] h-[76px] rounded-2xl bg-white/[0.1] backdrop-blur-md p-2.5 border border-white/[0.15] flex items-center justify-center group-hover:bg-white/[0.16] transition-all duration-300 shadow-xl shadow-black/10"
+   274→                initial={{ opacity: 0, scale: 0.85 }}
+   275→                animate={{ opacity: 1, scale: 1 }}
+   276→                transition={{ duration: 0.6, ease: [0.22, 1, 0.36, 1] }}
+   277→              >
+   278→                <img
+   279→                  src="/logo.png"
+   280→                  alt="QRBag"
+   281→                  className="w-full h-full object-contain drop-shadow-lg"
+   282→                />
+   283→              </motion.div>
+   284→            </Link>
+   285→          </div>
+   286→
+   287→          {/* Middle: Hero content */}
+   288→          <div className="flex-1 flex flex-col justify-center max-w-lg">
+   289→            {/* Floating QR illustration */}
+   290→            <motion.div
+   291→              className="relative mb-10"
+   292→              initial={{ opacity: 0, y: 20 }}
+   293→              animate={{ opacity: 1, y: 0 }}
+   294→              transition={{ duration: 0.7, delay: 0.15, ease: [0.22, 1, 0.36, 1] }}
+   295→            >
+   296→              <div className="w-20 h-20 rounded-2xl bg-gradient-to-br from-yellow-400 to-amber-700 flex items-center justify-center shadow-2xl shadow-amber-700/40">
+   297→                <QrCode className="w-10 h-10 text-white" />
+   298→              </div>
+   299→              {/* Decorative dots */}
+   300→              <div
+   301→                className="absolute -top-2.5 -right-2.5 w-5 h-5 rounded-full bg-[#fcd616] animate-bounce"
+   302→                style={{ animationDelay: '0.4s' }}
+   303→              />
+   304→              <div
+   305→                className="absolute -bottom-1.5 -right-5 w-3.5 h-3.5 rounded-full bg-yellow-300/70 animate-bounce"
+   306→                style={{ animationDelay: '1s' }}
+   307→              />
+   308→              <div
+   309→                className="absolute top-1 -left-3 w-3 h-3 rounded-full bg-white/20 animate-bounce"
+   310→                style={{ animationDelay: '1.6s' }}
+   311→              />
+   312→            </motion.div>
+   313→
+   314→            <motion.h2
+   315→              className="text-4xl xl:text-5xl font-bold text-white mb-4 leading-[1.1] tracking-tight"
+   316→              initial={{ opacity: 0, y: 24 }}
+   317→              animate={{ opacity: 1, y: 0 }}
+   318→              transition={{ duration: 0.7, delay: 0.25, ease: [0.22, 1, 0.36, 1] }}
+   319→            >
+   320→              Protégez chaque
+   321→              <br />
+   322→              <span className="bg-gradient-to-r from-[#fcd616] via-[#fcd616] to-[#fcd616] bg-clip-text text-transparent">
+   323→                bagage, en toute
+   324→              </span>
+   325→              <br />
+   326→              sérénité.
+   327→            </motion.h2>
+   328→
+   329→            <motion.p
+   330→              className="text-white/50 text-lg leading-relaxed mb-10 max-w-md"
+   331→              initial={{ opacity: 0, y: 20 }}
+   332→              animate={{ opacity: 1, y: 0 }}
+   333→              transition={{ duration: 0.7, delay: 0.35, ease: [0.22, 1, 0.36, 1] }}
+   334→            >
+   335→              Gérez vos bagages, vos clients et vos QR codes depuis un seul
+   336→              tableau de bord intuitif.
+   337→            </motion.p>
+   338→
+   339→            {/* Stats row */}
+   340→            <motion.div
+   341→              className="grid grid-cols-4 gap-3"
+   342→              initial={{ opacity: 0, y: 16 }}
+   343→              animate={{ opacity: 1, y: 0 }}
+   344→              transition={{ duration: 0.7, delay: 0.45, ease: [0.22, 1, 0.36, 1] }}
+   345→            >
+   346→              {STATS.map((stat, i) => (
+   347→                <div key={i} className="text-center py-3 rounded-xl bg-white/[0.05] backdrop-blur-sm border border-white/[0.06]">
+   348→                  <p className="text-white font-bold text-lg xl:text-xl">
+   349→                    {stat.value}
+   350→                  </p>
+   351→                  <p className="text-white/30 text-[10px] xl:text-xs mt-1 leading-tight px-1">
+   352→                    {stat.label}
+   353→                  </p>
+   354→                </div>
+   355→              ))}
+   356→            </motion.div>
+   357→          </div>
+   358→
+   359→          {/* Bottom: Testimonial with gold accent border */}
+   360→          <motion.div
+   361→            className="relative"
+   362→            initial={{ opacity: 0, y: 16 }}
+   363→            animate={{ opacity: 1, y: 0 }}
+   364→            transition={{ duration: 0.7, delay: 0.55, ease: [0.22, 1, 0.36, 1] }}
+   365→          >
+   366→            <div
+   367→              className="border-l-2 pl-5"
+   368→              style={{ borderColor: 'rgba(197, 166, 67, 0.5)' }}
+   369→            >
+   370→              <div className="min-h-[72px]">
+   371→                {TESTIMONIALS.map((t, i) => (
+   372→                  <AnimatedTestimonial
+   373→                    key={t.name}
+   374→                    testimonial={t}
+   375→                    isActive={i === activeTestimonial}
+   376→                  />
+   377→                ))}
+   378→              </div>
+   379→            </div>
+   380→
+   381→            {/* Dots indicator */}
+   382→            <div className="flex gap-1.5 mt-4">
+   383→              {TESTIMONIALS.map((_, i) => (
+   384→                <button
+   385→                  key={i}
+   386→                  onClick={() => setActiveTestimonial(i)}
+   387→                  aria-label={`Témoignage ${i + 1}`}
+   388→                  className={`h-1.5 rounded-full transition-all duration-300 ${
+   389→                    i === activeTestimonial
+   390→                      ? 'bg-[#fcd616] w-4'
+   391→                      : 'bg-white/20 w-1.5 hover:bg-white/35'
+   392→                  }`}
+   393→                />
+   394→              ))}
+   395→            </div>
+   396→          </motion.div>
+   397→        </div>
+   398→      </div>
+   399→
+   400→      {/* ══════════════════════════════════════════════════
+   401→          RIGHT PANEL — Clean White Form
+   402→          ══════════════════════════════════════════════════ */}
+   403→      <div className="w-full lg:w-[48%] min-h-screen flex items-center justify-center bg-white px-6 py-12 sm:px-10 relative">
+   404→        {/* Gold gradient accent line at top */}
+   405→        <div
+   406→          className="absolute top-0 left-0 right-0 h-1"
+   407→          style={{
+   408→            background: 'linear-gradient(90deg, #0047d6, #fcd616, #0047d6, #fcd616, #0047d6)',
+   409→          }}
+   410→        />
+   411→
+   412→        <motion.div
+   413→          className="w-full max-w-[400px] relative z-10"
+   414→          variants={containerVariants}
+   415→          initial="hidden"
+   416→          animate="visible"
+   417→        >
+   418→          {/* Mobile Logo — compact, centered */}
+   419→          <motion.div
+   420→            className="lg:hidden flex items-center justify-center mb-8"
+   421→            variants={itemVariants}
+   422→          >
+   423→            <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-amber-700 to-emerald-900 p-2 flex items-center justify-center shadow-lg shadow-emerald-800/20">
+   424→              <img
+   425→                src="/logo.png"
+   426→                alt="QRBag"
+   427→                className="w-full h-full object-contain"
+   428→              />
+   429→            </div>
+   430→          </motion.div>
+   431→
+   432→          {/* Badge */}
+   433→          <motion.div className="flex items-center gap-2 mb-6" variants={itemVariants}>
+   434→            <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-amber-700 text-white shadow-sm">
+   435→              <Building2 className="w-3 h-3" />
+   436→              Agence
+   437→            </span>
+   438→          </motion.div>
+   439→
+   440→          {/* Header */}
+   441→          <motion.div className="mb-8" variants={itemVariants}>
+   442→            <h1 className="text-3xl font-bold text-slate-900 tracking-tight mb-2">
+   443→              Bienvenue
+   444→            </h1>
+   445→            <p className="text-slate-500 text-sm leading-relaxed">
+   446→              Connectez-vous à votre espace agence pour gérer vos bagages et QR
+   447→              codes
+   448→            </p>
+   449→          </motion.div>
+   450→
+   451→          {/* Error Alert */}
+   452→          <AnimatePresence>
+   453→            {error && (
+   454→              <motion.div
+   455→                initial={{ opacity: 0, height: 0, marginBottom: 0 }}
+   456→                animate={{ opacity: 1, height: 'auto', marginBottom: 24 }}
+   457→                exit={{ opacity: 0, height: 0, marginBottom: 0 }}
+   458→                transition={{ duration: 0.3 }}
+   459→                className="overflow-hidden"
+   460→              >
+   461→                <div className="p-4 bg-red-50 border border-red-200 text-red-700 rounded-xl text-sm flex items-start gap-3">
+   462→                  <div className="w-6 h-6 rounded-full bg-red-500 flex items-center justify-center shrink-0 mt-0.5">
+   463→                    <span className="text-white text-xs font-bold">!</span>
+   464→                  </div>
+   465→                  <span>{error}</span>
+   466→                </div>
+   467→              </motion.div>
+   468→            )}
+   469→          </AnimatePresence>
+   470→
+   471→          {/* Form */}
+   472→          <motion.form
+   473→            onSubmit={handleSubmit}
+   474→            className="space-y-5"
+   475→            variants={itemVariants}
+   476→          >
+   477→            {/* Email Field */}
+   478→            <div>
+   479→              <label className="block text-xs font-semibold text-slate-600 uppercase tracking-wider mb-2">
+   480→                Email
+   481→              </label>
+   482→              <div
+   483→                className={`relative flex items-center rounded-xl border transition-all duration-200 ${
+   484→                  focusedField === 'email'
+   485→                    ? 'border-yellow-600 bg-white ring-4 ring-yellow-600/[0.08]'
+   486→                    : 'border-slate-200 bg-slate-50 hover:border-slate-300'
+   487→                }`}
+   488→              >
+   489→                <div
+   490→                  className={`pl-4 transition-colors duration-200 ${
+   491→                    focusedField === 'email' ? 'text-amber-700' : 'text-slate-400'
+   492→                  }`}
+   493→                >
+   494→                  <Mail className="w-[18px] h-[18px]" />
+   495→                </div>
+   496→                <input
+   497→                  type="email"
+   498→                  value={email}
+   499→                  onChange={(e) => setEmail(e.target.value)}
+   500→                  onFocus={() => setFocusedField('email')}
+   501→                  onBlur={() => setFocusedField(null)}
+   502→                  className="w-full bg-transparent border-none outline-none text-slate-900 placeholder-slate-400 py-3.5 px-3 text-sm"
+   503→                  placeholder="vous@agence.com"
+   504→                  required
+   505→                  autoComplete="email"
+   506→                />
+   507→              </div>
+   508→            </div>
+   509→
+   510→            {/* Password Field */}
+   511→            <div>
+   512→              <label className="block text-xs font-semibold text-slate-600 uppercase tracking-wider mb-2">
+   513→                Mot de passe
+   514→              </label>
+   515→              <div
+   516→                className={`relative flex items-center rounded-xl border transition-all duration-200 ${
+   517→                  focusedField === 'password'
+   518→                    ? 'border-yellow-600 bg-white ring-4 ring-yellow-600/[0.08]'
+   519→                    : 'border-slate-200 bg-slate-50 hover:border-slate-300'
+   520→                }`}
+   521→              >
+   522→                <div
+   523→                  className={`pl-4 transition-colors duration-200 ${
+   524→                    focusedField === 'password'
+   525→                      ? 'text-amber-700'
+   526→                      : 'text-slate-400'
+   527→                  }`}
+   528→                >
+   529→                  <Lock className="w-[18px] h-[18px]" />
+   530→                </div>
+   531→                <input
+   532→                  type={showPassword ? 'text' : 'password'}
+   533→                  value={password}
+   534→                  onChange={(e) => setPassword(e.target.value)}
+   535→                  onFocus={() => setFocusedField('password')}
+   536→                  onBlur={() => setFocusedField(null)}
+   537→                  className="w-full bg-transparent border-none outline-none text-slate-900 placeholder-slate-400 py-3.5 px-3 text-sm"
+   538→                  placeholder="Entrez votre mot de passe"
+   539→                  required
+   540→                  autoComplete="current-password"
+   541→                />
+   542→                <button
+   543→                  type="button"
+   544→                  onClick={() => setShowPassword(!showPassword)}
+   545→                  className="pr-4 text-slate-400 hover:text-yellow-600 transition-colors duration-200 min-w-[44px] min-h-[44px] flex items-center justify-center"
+   546→                  tabIndex={-1}
+   547→                  aria-label={showPassword ? 'Masquer le mot de passe' : 'Afficher le mot de passe'}
+   548→                >
+   549→                  {showPassword ? (
+   550→                    <EyeOff className="w-[18px] h-[18px]" />
+   551→                  ) : (
+   552→                    <Eye className="w-[18px] h-[18px]" />
+   553→                  )}
+   554→                </button>
+   555→              </div>
+   556→            </div>
+   557→
+   558→            {/* Remember me + Forgot password */}
+   559→            <div className="flex items-center justify-between">
+   560→              <label className="flex items-center cursor-pointer gap-2 group">
+   561→                <input
+   562→                  type="checkbox"
+   563→                  checked={rememberMe}
+   564→                  onChange={(e) => setRememberMe(e.target.checked)}
+   565→                  className="w-4 h-4 rounded border-slate-300 text-amber-700 focus:ring-amber-700/20 cursor-pointer"
+   566→                />
+   567→                <span className="text-sm text-slate-500 group-hover:text-slate-700 transition-colors">
+   568→                  Se souvenir de moi
+   569→                </span>
+   570→              </label>
+   571→              <Link
+   572→                href="/forgot-password"
+   573→                className="text-sm font-medium text-amber-700 hover:text-emerald-800 transition-colors"
+   574→              >
+   575→                Mot de passe oublié ?
+   576→              </Link>
+   577→            </div>
+   578→
+   579→            {/* Submit Button */}
+   580→            <motion.button
+   581→              type="submit"
+   582→              disabled={loading}
+   583→              whileHover={loading ? {} : { scale: 1.01 }}
+   584→              whileTap={loading ? {} : { scale: 0.98 }}
+   585→              className="w-full text-white font-semibold py-3.5 px-4 rounded-xl transition-all duration-300 disabled:opacity-70 disabled:cursor-not-allowed flex items-center justify-center gap-2.5 text-sm bg-gradient-to-r from-yellow-600 to-amber-700 hover:from-yellow-500 hover:to-yellow-600 shadow-lg shadow-yellow-600/25 hover:shadow-xl hover:shadow-yellow-600/30"
+   586→            >
+   587→              {loading ? (
+   588→                <>
+   589→                  <Loader2 className="w-4 h-4 animate-spin" />
+   590→                  Connexion en cours...
+   591→                </>
+   592→              ) : (
+   593→                <>
+   594→                  Se connecter
+   595→                  <ArrowRight className="w-4 h-4" />
+   596→                </>
+   597→              )}
+   598→            </motion.button>
+   599→          </motion.form>
+   600→
+   601→          {/* Demo Account Card */}
+   602→          <motion.div
+   603→            className="mt-6 p-4 rounded-xl bg-yellow-50/70 border border-yellow-100"
+   604→            variants={itemVariants}
+   605→          >
+   606→            <div className="flex items-center justify-between">
+   607→              <div className="flex items-center gap-3">
+   608→                <div className="w-9 h-9 rounded-lg bg-amber-700 flex items-center justify-center shadow-sm shadow-amber-700/20">
+   609→                  <Fingerprint className="w-4 h-4 text-white" />
+   610→                </div>
+   611→                <div>
+   612→                  <p className="text-xs font-semibold text-emerald-900">
+   613→                    Compte démo
+   614→                  </p>
+   615→                  <p className="text-[10px] text-yellow-600/70 font-mono leading-relaxed">
+   616→                    agence@qrbag.com / agence123
+   617→                  </p>
+   618→                </div>
+   619→              </div>
+   620→              <button
+   621→                type="button"
+   622→                onClick={fillDemo}
+   623→                className="text-xs font-semibold px-3.5 py-2 rounded-lg bg-amber-700 text-white hover:bg-yellow-600 active:scale-[0.97] transition-all duration-200 shadow-sm shadow-amber-700/20"
+   624→              >
+   625→                Remplir
+   626→              </button>
+   627→            </div>
+   628→          </motion.div>
+   629→
+   630→          {/* Switch to Admin */}
+   631→          <motion.div
+   632→            className="mt-8 text-center text-sm text-slate-500"
+   633→            variants={itemVariants}
+   634→          >
+   635→            Vous êtes administrateur ?{' '}
+   636→            <Link
+   637→              href="/admin/connexion"
+   638→              className="font-semibold text-amber-700 hover:text-emerald-800 transition-colors"
+   639→            >
+   640→              Connexion SuperAdmin
+   641→            </Link>
+   642→          </motion.div>
+   643→
+   644→          {/* Bottom links */}
+   645→          <motion.div
+   646→            className="mt-6 flex items-center justify-center gap-4 text-xs text-slate-400"
+   647→            variants={itemVariants}
+   648→          >
+   649→            <Link
+   650→              href="/cgu"
+   651→              className="hover:text-yellow-600 transition-colors"
+   652→            >
+   653→              CGU
+   654→            </Link>
+   655→            <span className="text-slate-200">•</span>
+   656→            <Link
+   657→              href="/confidentialite"
+   658→              className="hover:text-yellow-600 transition-colors"
+   659→            >
+   660→              Confidentialité
+   661→            </Link>
+   662→            <span className="text-slate-200">•</span>
+   663→            <Link
+   664→              href="/contact"
+   665→              className="hover:text-yellow-600 transition-colors"
+   666→            >
+   667→              Aide
+   668→            </Link>
+   669→          </motion.div>
+   670→        </motion.div>
+   671→      </div>
+   672→    </div>
+   673→  );
+   674→}

@@ -1,0 +1,849 @@
+     1→import prisma from './prisma';
+     2→import crypto from 'crypto';
+     3→import nodemailer from 'nodemailer';
+     4→
+     5→// Email provider types
+     6→export type EmailProvider = 'console' | 'smtp';
+     7→
+     8→// Email settings interface
+     9→export interface EmailConfig {
+    10→  provider: EmailProvider;
+    11→  fromEmail: string;
+    12→  fromName: string;
+    13→  recipientEmail?: string | null;
+    14→  smtpHost?: string | null;
+    15→  smtpPort?: number | null;
+    16→  smtpUser?: string | null;
+    17→  smtpPassword?: string | null;
+    18→  smtpEncryption?: string;
+    19→}
+    20→
+    21→// Email data interface
+    22→export interface EmailData {
+    23→  to: string | string[];
+    24→  subject: string;
+    25→  html: string;
+    26→  text?: string;
+    27→  type?: string;
+    28→  userId?: string;
+    29→  agencyId?: string;
+    30→  data?: Record<string, unknown>;
+    31→  // refonte-8: PDF/email attachments (nodemailer-native)
+    32→  attachments?: Array<{
+    33→    filename: string;
+    34→    content: Buffer | string;
+    35→    contentType?: string;
+    36→  }>;
+    37→}
+    38→
+    39→// Generate random token
+    40→export function generateToken(): string {
+    41→  return crypto.randomBytes(32).toString('hex');
+    42→}
+    43→
+    44→// Generate 6-digit code
+    45→export function generateCode(): string {
+    46→  return Math.floor(100000 + Math.random() * 900000).toString();
+    47→}
+    48→
+    49→// Get email settings from database
+    50→export async function getEmailSettings(): Promise<EmailConfig | null> {
+    51→  try {
+    52→    const settings = await prisma.emailSettings.findFirst();
+    53→    if (!settings) {
+    54→      // Return default console provider settings
+    55→      return {
+    56→        provider: 'console',
+    57→        fromEmail: 'noreply@qrbag.com',
+    58→        fromName: 'QRBag',
+    59→        smtpEncryption: 'tls',
+    60→      };
+    61→    }
+    62→    return {
+    63→      provider: settings.provider as EmailProvider,
+    64→      fromEmail: settings.fromEmail,
+    65→      fromName: settings.fromName,
+    66→      recipientEmail: settings.recipientEmail || null,
+    67→      smtpHost: settings.smtpHost,
+    68→      smtpPort: settings.smtpPort,
+    69→      smtpUser: settings.smtpUser,
+    70→      smtpPassword: settings.smtpPassword,
+    71→      smtpEncryption: settings.smtpEncryption || 'tls',
+    72→    };
+    73→  } catch (error) {
+    74→    console.error('Error fetching email settings:', error);
+    75→    return null;
+    76→  }
+    77→}
+    78→
+    79→// Save email settings to database
+    80→export async function saveEmailSettings(config: Partial<EmailConfig>): Promise<EmailConfig | null> {
+    81→  try {
+    82→    const existing = await prisma.emailSettings.findFirst();
+    83→    
+    84→    if (existing) {
+    85→      const updated = await prisma.emailSettings.update({
+    86→        where: { id: existing.id },
+    87→        data: {
+    88→          provider: config.provider || existing.provider,
+    89→          fromEmail: config.fromEmail || existing.fromEmail,
+    90→          fromName: config.fromName || existing.fromName,
+    91→          recipientEmail: config.recipientEmail !== undefined ? config.recipientEmail || null : existing.recipientEmail,
+    92→          smtpHost: config.smtpHost,
+    93→          smtpPort: config.smtpPort,
+    94→          smtpUser: config.smtpUser,
+    95→          smtpPassword: config.smtpPassword,
+    96→          smtpEncryption: config.smtpEncryption || existing.smtpEncryption,
+    97→        },
+    98→      });
+    99→      return {
+   100→        provider: updated.provider as EmailProvider,
+   101→        fromEmail: updated.fromEmail,
+   102→        fromName: updated.fromName,
+   103→        recipientEmail: updated.recipientEmail || null,
+   104→        smtpHost: updated.smtpHost,
+   105→        smtpPort: updated.smtpPort,
+   106→        smtpUser: updated.smtpUser,
+   107→        smtpPassword: updated.smtpPassword,
+   108→        smtpEncryption: updated.smtpEncryption || 'tls',
+   109→      };
+   110→    } else {
+   111→      const created = await prisma.emailSettings.create({
+   112→        data: {
+   113→          provider: config.provider || 'console',
+   114→          fromEmail: config.fromEmail || 'noreply@qrbag.com',
+   115→          fromName: config.fromName || 'QRBag',
+   116→          recipientEmail: config.recipientEmail || null,
+   117→          smtpHost: config.smtpHost,
+   118→          smtpPort: config.smtpPort,
+   119→          smtpUser: config.smtpUser,
+   120→          smtpPassword: config.smtpPassword,
+   121→          smtpEncryption: config.smtpEncryption || 'tls',
+   122→        },
+   123→      });
+   124→      return {
+   125→        provider: created.provider as EmailProvider,
+   126→        fromEmail: created.fromEmail,
+   127→        fromName: created.fromName,
+   128→        recipientEmail: created.recipientEmail || null,
+   129→        smtpHost: created.smtpHost,
+   130→        smtpPort: created.smtpPort,
+   131→        smtpUser: created.smtpUser,
+   132→        smtpPassword: created.smtpPassword,
+   133→        smtpEncryption: created.smtpEncryption || 'tls',
+   134→      };
+   135→    }
+   136→  } catch (error) {
+   137→    console.error('Error saving email settings:', error);
+   138→    return null;
+   139→  }
+   140→}
+   141→
+   142→// Log email to database
+   143→async function logEmail(
+   144→  to: string,
+   145→  subject: string,
+   146→  type: string,
+   147→  status: 'pending' | 'sent' | 'failed',
+   148→  error?: string,
+   149→  userId?: string,
+   150→  agencyId?: string,
+   151→  data?: Record<string, unknown>
+   152→): Promise<void> {
+   153→  try {
+   154→    await prisma.emailLog.create({
+   155→      data: {
+   156→        to,
+   157→        subject,
+   158→        type,
+   159→        status,
+   160→        error,
+   161→        userId,
+   162→        agencyId,
+   163→        data: data ? JSON.stringify(data) : null,
+   164→        sentAt: status === 'sent' ? new Date() : null,
+   165→      },
+   166→    });
+   167→  } catch (logError) {
+   168→    console.error('Error logging email:', logError);
+   169→  }
+   170→}
+   171→
+   172→// Update email test status
+   173→export async function updateTestStatus(success: boolean, error?: string): Promise<void> {
+   174→  try {
+   175→    const existing = await prisma.emailSettings.findFirst();
+   176→    if (existing) {
+   177→      await prisma.emailSettings.update({
+   178→        where: { id: existing.id },
+   179→        data: {
+   180→          lastTestAt: new Date(),
+   181→          lastTestStatus: success ? 'success' : 'failed',
+   182→          lastTestError: error || null,
+   183→        },
+   184→      });
+   185→    }
+   186→  } catch (updateError) {
+   187→    console.error('Error updating test status:', updateError);
+   188→  }
+   189→}
+   190→
+   191→// Send via SMTP using nodemailer
+   192→async function sendViaSMTP(config: EmailConfig, emailData: EmailData): Promise<{ success: boolean; error?: string }> {
+   193→  if (!config.smtpHost || !config.smtpPort) {
+   194→    return { success: false, error: 'Configuration SMTP incomplète (hôte ou port manquant)' };
+   195→  }
+   196→
+   197→  try {
+   198→    console.log('📧 SMTP Email — Connecting to:', config.smtpHost, 'port:', config.smtpPort);
+   199→
+   200→    const transporter = nodemailer.createTransport({
+   201→      host: config.smtpHost,
+   202→      port: Number(config.smtpPort),
+   203→      secure: config.smtpEncryption === 'ssl' || Number(config.smtpPort) === 465,
+   204→      auth: {
+   205→        user: config.smtpUser || '',
+   206→        pass: config.smtpPassword || '',
+   207→      },
+   208→      tls: {
+   209→        rejectUnauthorized: false,
+   210→      },
+   211→    });
+   212→
+   213→    // Verify transporter connection
+   214→    await transporter.verify();
+   215→    console.log('📧 SMTP Email — Connection verified successfully');
+   216→
+   217→    const toAddresses = Array.isArray(emailData.to) ? emailData.to : [emailData.to];
+   218→
+   219→    const mailOptions: nodemailer.SendMailOptions = {
+   220→      from: `"${config.fromName}" <${config.fromEmail}>`,
+   221→      to: toAddresses.join(', '),
+   222→      subject: emailData.subject,
+   223→      html: emailData.html,
+   224→      text: emailData.text,
+   225→      // refonte-8: pass through attachments (PDF, etc.) if provided
+   226→      ...(emailData.attachments && emailData.attachments.length > 0
+   227→        ? { attachments: emailData.attachments }
+   228→        : {}),
+   229→    };
+   230→
+   231→    const info = await transporter.sendMail(mailOptions);
+   232→    console.log('📧 SMTP Email — Sent successfully, Message ID:', info.messageId);
+   233→
+   234→    return { success: true };
+   235→  } catch (error: unknown) {
+   236→    const err = error as Error;
+   237→    console.error('📧 SMTP Email — Failed:', err.message);
+   238→    return { success: false, error: `Erreur SMTP: ${err.message}` };
+   239→  }
+   240→}
+   241→
+   242→// Main send email function
+   243→export async function sendEmail(emailData: EmailData): Promise<{ success: boolean; error?: string }> {
+   244→  const config = await getEmailSettings();
+   245→  
+   246→  if (!config) {
+   247→    const error = 'Configuration email non trouvée';
+   248→    await logEmail(
+   249→      Array.isArray(emailData.to) ? emailData.to.join(', ') : emailData.to,
+   250→      emailData.subject,
+   251→      emailData.type || 'general',
+   252→      'failed',
+   253→      error,
+   254→      emailData.userId,
+   255→      emailData.agencyId,
+   256→      emailData.data
+   257→    );
+   258→    return { success: false, error };
+   259→  }
+   260→
+   261→  const toEmail = Array.isArray(emailData.to) ? emailData.to.join(', ') : emailData.to;
+   262→  let result: { success: boolean; error?: string };
+   263→
+   264→  switch (config.provider) {
+   265→    case 'smtp':
+   266→      result = await sendViaSMTP(config, emailData);
+   267→      break;
+   268→    case 'console':
+   269→    default:
+   270→      // Console mode - just log the email
+   271→      console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+   272→      console.log('📧 EMAIL (Console Mode)');
+   273→      console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+   274→      console.log(`From: ${config.fromName} <${config.fromEmail}>`);
+   275→      console.log(`To: ${toEmail}`);
+   276→      console.log(`Subject: ${emailData.subject}`);
+   277→      console.log(`Type: ${emailData.type || 'general'}`);
+   278→      if (emailData.attachments && emailData.attachments.length > 0) {
+   279→        console.log(`Attachments: ${emailData.attachments.map(a => `${a.filename} (${typeof a.content === 'string' ? a.content.length : a.content.length} bytes)`).join(', ')}`);
+   280→      }
+   281→      console.log('────────────────────────────────────────────────');
+   282→      console.log(emailData.text || emailData.html?.replace(/<[^>]*>/g, ''));
+   283→      console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+   284→      result = { success: true };
+   285→      break;
+   286→  }
+   287→
+   288→  // Log the email
+   289→  await logEmail(
+   290→    toEmail,
+   291→    emailData.subject,
+   292→    emailData.type || 'general',
+   293→    result.success ? 'sent' : 'failed',
+   294→    result.error,
+   295→    emailData.userId,
+   296→    emailData.agencyId,
+   297→    emailData.data
+   298→  );
+   299→
+   300→  return result;
+   301→}
+   302→
+   303→// ============ EMAIL TEMPLATES ============
+   304→
+   305→export function getVerificationEmailTemplate(name: string, verificationUrl: string, code: string): { html: string; text: string } {
+   306→  return {
+   307→    html: `
+   308→      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
+   309→        <div style="text-align: center; margin-bottom: 30px;">
+   310→          <h1 style="color: #2563EB; margin: 0;">QRBag</h1>
+   311→        </div>
+   312→        <div style="background: #f9f9f9; border-radius: 10px; padding: 30px;">
+   313→          <h2 style="color: #333; margin-top: 0;">Vérification de votre email</h2>
+   314→          <p style="color: #666;">Bonjour ${name},</p>
+   315→          <p style="color: #666;">Merci de vous être inscrit sur QRBag. Vérifiez votre adresse email en utilisant le code ci-dessous :</p>
+   316→          <div style="text-align: center; margin: 30px 0;">
+   317→            <div style="background: #fff; border: 2px solid #2563EB; border-radius: 10px; padding: 20px; display: inline-block;">
+   318→              <span style="font-size: 32px; font-weight: bold; letter-spacing: 8px; color: #2563EB;">${code}</span>
+   319→            </div>
+   320→          </div>
+   321→          <p style="color: #666; text-align: center;">Ou cliquez sur le bouton suivant :</p>
+   322→          <div style="text-align: center; margin: 20px 0;">
+   323→            <a href="${verificationUrl}" style="background: #2563EB; color: white; padding: 12px 30px; text-decoration: none; border-radius: 5px; font-weight: bold;">Vérifier mon email</a>
+   324→          </div>
+   325→          <p style="color: #999; font-size: 12px; text-align: center;">Ce code expire dans 24 heures. Si vous n'avez pas créé de compte, vous pouvez ignorer cet email.</p>
+   326→        </div>
+   327→        <div style="text-align: center; margin-top: 30px; color: #999; font-size: 12px;">
+   328→          <p>© QRBag - Tous droits réservés</p>
+   329→        </div>
+   330→      </div>
+   331→    `,
+   332→    text: `QRBag - Vérification de votre email\n\nBonjour ${name},\n\nMerci de vous être inscrit sur QRBag.\n\nVotre code de vérification : ${code}\n\nOu utilisez ce lien : ${verificationUrl}\n\nCe code expire dans 24 heures. Si vous n'avez pas créé de compte, vous pouvez ignorer cet email.\n\n© QRBag`,
+   333→  };
+   334→}
+   335→
+   336→export function getPasswordResetEmailTemplate(name: string, resetUrl: string, code: string): { html: string; text: string } {
+   337→  return {
+   338→    html: `
+   339→      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
+   340→        <div style="text-align: center; margin-bottom: 30px;">
+   341→          <h1 style="color: #2563EB; margin: 0;">QRBag</h1>
+   342→        </div>
+   343→        <div style="background: #f9f9f9; border-radius: 10px; padding: 30px;">
+   344→          <h2 style="color: #333; margin-top: 0;">Réinitialisation de votre mot de passe</h2>
+   345→          <p style="color: #666;">Bonjour ${name},</p>
+   346→          <p style="color: #666;">Vous avez demandé la réinitialisation de votre mot de passe. Utilisez le code ci-dessous :</p>
+   347→          <div style="text-align: center; margin: 30px 0;">
+   348→            <div style="background: #fff; border: 2px solid #2563EB; border-radius: 10px; padding: 20px; display: inline-block;">
+   349→              <span style="font-size: 32px; font-weight: bold; letter-spacing: 8px; color: #2563EB;">${code}</span>
+   350→            </div>
+   351→          </div>
+   352→          <p style="color: #666; text-align: center;">Ou cliquez sur le bouton suivant :</p>
+   353→          <div style="text-align: center; margin: 20px 0;">
+   354→            <a href="${resetUrl}" style="background: #2563EB; color: white; padding: 12px 30px; text-decoration: none; border-radius: 5px; font-weight: bold;">Réinitialiser mon mot de passe</a>
+   355→          </div>
+   356→          <p style="color: #999; font-size: 12px; text-align: center;">Ce code expire dans 1 heure. Si vous n'avez pas demandé cette réinitialisation, vous pouvez ignorer cet email.</p>
+   357→        </div>
+   358→        <div style="text-align: center; margin-top: 30px; color: #999; font-size: 12px;">
+   359→          <p>© QRBag - Tous droits réservés</p>
+   360→        </div>
+   361→      </div>
+   362→    `,
+   363→    text: `QRBag - Réinitialisation de votre mot de passe\n\nBonjour ${name},\n\nVous avez demandé la réinitialisation de votre mot de passe.\n\nVotre code : ${code}\n\nOu utilisez ce lien : ${resetUrl}\n\nCe code expire dans 1 heure. Si vous n'avez pas demandé cette réinitialisation, vous pouvez ignorer cet email.\n\n© QRBag`,
+   364→  };
+   365→}
+   366→
+   367→export function getTestEmailTemplate(): { html: string; text: string } {
+   368→  const now = new Date().toLocaleString('fr-FR');
+   369→  return {
+   370→    html: `
+   371→      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
+   372→        <div style="text-align: center; margin-bottom: 30px;">
+   373→          <h1 style="color: #2563EB; margin: 0;">QRBag</h1>
+   374→        </div>
+   375→        <div style="background: #f9f9f9; border-radius: 10px; padding: 30px;">
+   376→          <h2 style="color: #333; margin-top: 0;">Email de test</h2>
+   377→          <p style="color: #666;">Ceci est un email de test envoyé depuis le panneau d'administration QRBag.</p>
+   378→          <p style="color: #666;">Si vous recevez cet email, votre configuration email fonctionne correctement !</p>
+   379→          <div style="background: #e8f5e9; border-radius: 5px; padding: 15px; margin-top: 20px;">
+   380→            <p style="color: #2e7d32; margin: 0; font-weight: bold;">✓ Configuration email valide</p>
+   381→            <p style="color: #666; margin: 5px 0 0 0; font-size: 12px;">Envoyé le ${now}</p>
+   382→          </div>
+   383→        </div>
+   384→        <div style="text-align: center; margin-top: 30px; color: #999; font-size: 12px;">
+   385→          <p>© QRBag - Tous droits réservés</p>
+   386→        </div>
+   387→      </div>
+   388→    `,
+   389→    text: `QRBag - Email de test\n\nCeci est un email de test envoyé depuis le panneau d'administration QRBag.\n\nSi vous recevez cet email, votre configuration email fonctionne correctement !\n\n✓ Configuration email valide\nEnvoyé le ${now}\n\n© QRBag`,
+   390→  };
+   391→}
+   392→
+   393→// ============ EMAIL TOKEN MANAGEMENT ============
+   394→
+   395→export async function createEmailToken(email: string, type: 'email_verification' | 'password_reset'): Promise<{ token: string; code: string }> {
+   396→  const token = generateToken();
+   397→  const code = generateCode();
+   398→  
+   399→  // Set expiration: 24h for verification, 1h for password reset
+   400→  const expiresHours = type === 'email_verification' ? 24 : 1;
+   401→  const expiresAt = new Date(Date.now() + expiresHours * 60 * 60 * 1000);
+   402→  
+   403→  // Delete any existing tokens for this email and type
+   404→  await prisma.emailToken.deleteMany({
+   405→    where: { email, type }
+   406→  });
+   407→  
+   408→  // Create new token
+   409→  await prisma.emailToken.create({
+   410→    data: {
+   411→      email,
+   412→      token,
+   413→      code,
+   414→      type,
+   415→      expiresAt,
+   416→    }
+   417→  });
+   418→  
+   419→  return { token, code };
+   420→}
+   421→
+   422→export async function verifyEmailToken(token: string, type: 'email_verification' | 'password_reset'): Promise<{ valid: boolean; email?: string; error?: string }> {
+   423→  const emailToken = await prisma.emailToken.findFirst({
+   424→    where: {
+   425→      token,
+   426→      type,
+   427→      used: false,
+   428→      expiresAt: { gt: new Date() }
+   429→    }
+   430→  });
+   431→  
+   432→  if (!emailToken) {
+   433→    return { valid: false, error: 'Token invalide ou expiré' };
+   434→  }
+   435→  
+   436→  // Mark as used
+   437→  await prisma.emailToken.update({
+   438→    where: { id: emailToken.id },
+   439→    data: { used: true, usedAt: new Date() }
+   440→  });
+   441→  
+   442→  return { valid: true, email: emailToken.email };
+   443→}
+   444→
+   445→export function getBaggageLostEmailTemplate(data: {
+   446→  reference: string;
+   447→  agencyName?: string;
+   448→  travelerName?: string;
+   449→  baggageType?: string;
+   450→  destination?: string;
+   451→  flightNumber?: string;
+   452→}): { html: string; text: string } {
+   453→  const now = new Date().toLocaleString('fr-FR');
+   454→  const travelerDisplay = data.travelerName ? `${data.travelerName}` : 'Non renseigné';
+   455→  return {
+   456→    html: `
+   457→      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
+   458→        <div style="text-align: center; margin-bottom: 30px;">
+   459→          <h1 style="color: #2563EB; margin: 0;">QRBag</h1>
+   460→        </div>
+   461→        <div style="background: #fff3f3; border: 2px solid #e74c3c; border-radius: 10px; padding: 30px;">
+   462→          <h2 style="color: #e74c3c; margin-top: 0;">🚨 Bagage déclaré comme perdu</h2>
+   463→          <p style="color: #666;">Un bagage a été signalé comme perdu. Voici les détails :</p>
+   464→          <table style="width: 100%; border-collapse: collapse; margin-top: 20px;">
+   465→            <tr>
+   466→              <td style="padding: 8px 0; color: #999; font-size: 14px; border-bottom: 1px solid #eee;">Référence</td>
+   467→              <td style="padding: 8px 0; font-weight: bold; color: #333; border-bottom: 1px solid #eee;">${data.reference}</td>
+   468→            </tr>
+   469→            <tr>
+   470→              <td style="padding: 8px 0; color: #999; font-size: 14px; border-bottom: 1px solid #eee;">Voyageur</td>
+   471→              <td style="padding: 8px 0; font-weight: bold; color: #333; border-bottom: 1px solid #eee;">${travelerDisplay}</td>
+   472→            </tr>
+   473→            ${data.agencyName ? `
+   474→            <tr>
+   475→              <td style="padding: 8px 0; color: #999; font-size: 14px; border-bottom: 1px solid #eee;">Agence</td>
+   476→              <td style="padding: 8px 0; font-weight: bold; color: #333; border-bottom: 1px solid #eee;">${data.agencyName}</td>
+   477→            </tr>` : ''}
+   478→            ${data.baggageType ? `
+   479→            <tr>
+   480→              <td style="padding: 8px 0; color: #999; font-size: 14px; border-bottom: 1px solid #eee;">Type de bagage</td>
+   481→              <td style="padding: 8px 0; font-weight: bold; color: #333; border-bottom: 1px solid #eee;">${data.baggageType}</td>
+   482→            </tr>` : ''}
+   483→            ${data.flightNumber ? `
+   484→            <tr>
+   485→              <td style="padding: 8px 0; color: #999; font-size: 14px; border-bottom: 1px solid #eee;">Vol</td>
+   486→              <td style="padding: 8px 0; font-weight: bold; color: #333; border-bottom: 1px solid #eee;">${data.flightNumber}</td>
+   487→            </tr>` : ''}
+   488→            ${data.destination ? `
+   489→            <tr>
+   490→              <td style="padding: 8px 0; color: #999; font-size: 14px;">Destination</td>
+   491→              <td style="padding: 8px 0; font-weight: bold; color: #333;">${data.destination}</td>
+   492→            </tr>` : ''}
+   493→          </table>
+   494→        </div>
+   495→        <p style="color: #999; font-size: 12px; text-align: center; margin-top: 20px;">Notification automatique QRBag — ${now}</p>
+   496→        <div style="text-align: center; color: #999; font-size: 12px;">
+   497→          <p>© QRBag - Tous droits réservés</p>
+   498→        </div>
+   499→      </div>
+   500→    `,
+   501→    text: `🚨 QRBag - Bagage déclaré comme perdu\n\nRéférence: ${data.reference}\nVoyageur: ${travelerDisplay}\nAgence: ${data.agencyName || 'Non renseignée'}\nType: ${data.baggageType || 'Non renseigné'}\nVol: ${data.flightNumber || 'Non renseigné'}\nDestination: ${data.destination || 'Non renseignée'}\n\nNotification automatique QRBag — ${now}\n© QRBag`,
+   502→  };
+   503→}
+   504→
+   505→export function getBaggageFoundEmailTemplate(data: {
+   506→  reference: string;
+   507→  agencyName?: string;
+   508→  travelerName?: string;
+   509→  baggageType?: string;
+   510→}): { html: string; text: string } {
+   511→  const now = new Date().toLocaleString('fr-FR');
+   512→  const travelerDisplay = data.travelerName ? `${data.travelerName}` : 'Non renseigné';
+   513→  return {
+   514→    html: `
+   515→      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
+   516→        <div style="text-align: center; margin-bottom: 30px;">
+   517→          <h1 style="color: #2563EB; margin: 0;">QRBag</h1>
+   518→        </div>
+   519→        <div style="background: #e8f5e9; border: 2px solid #27ae60; border-radius: 10px; padding: 30px;">
+   520→          <h2 style="color: #27ae60; margin-top: 0;">✅ Bagage retrouvé !</h2>
+   521→          <p style="color: #666;">Un bagage précédemment signalé comme perdu a été retrouvé. Voici les détails :</p>
+   522→          <table style="width: 100%; border-collapse: collapse; margin-top: 20px;">
+   523→            <tr>
+   524→              <td style="padding: 8px 0; color: #999; font-size: 14px; border-bottom: 1px solid #eee;">Référence</td>
+   525→              <td style="padding: 8px 0; font-weight: bold; color: #333; border-bottom: 1px solid #eee;">${data.reference}</td>
+   526→            </tr>
+   527→            <tr>
+   528→              <td style="padding: 8px 0; color: #999; font-size: 14px; border-bottom: 1px solid #eee;">Voyageur</td>
+   529→              <td style="padding: 8px 0; font-weight: bold; color: #333; border-bottom: 1px solid #eee;">${travelerDisplay}</td>
+   530→            </tr>
+   531→            ${data.agencyName ? `
+   532→            <tr>
+   533→              <td style="padding: 8px 0; color: #999; font-size: 14px; border-bottom: 1px solid #eee;">Agence</td>
+   534→              <td style="padding: 8px 0; font-weight: bold; color: #333; border-bottom: 1px solid #eee;">${data.agencyName}</td>
+   535→            </tr>` : ''}
+   536→            ${data.baggageType ? `
+   537→            <tr>
+   538→              <td style="padding: 8px 0; color: #999; font-size: 14px;">Type de bagage</td>
+   539→              <td style="padding: 8px 0; font-weight: bold; color: #333;">${data.baggageType}</td>
+   540→            </tr>` : ''}
+   541→          </table>
+   542→        </div>
+   543→        <p style="color: #999; font-size: 12px; text-align: center; margin-top: 20px;">Notification automatique QRBag — ${now}</p>
+   544→        <div style="text-align: center; color: #999; font-size: 12px;">
+   545→          <p>© QRBag - Tous droits réservés</p>
+   546→        </div>
+   547→      </div>
+   548→    `,
+   549→    text: `✅ QRBag - Bagage retrouvé !\n\nRéférence: ${data.reference}\nVoyageur: ${travelerDisplay}\nAgence: ${data.agencyName || 'Non renseignée'}\nType: ${data.baggageType || 'Non renseigné'}\n\nNotification automatique QRBag — ${now}\n© QRBag`,
+   550→  };
+   551→}
+   552→
+   553→export function getNewAgencyEmailTemplate(data: {
+   554→  name: string;
+   555→  email?: string;
+   556→  phone?: string;
+   557→  address?: string;
+   558→}): { html: string; text: string } {
+   559→  const now = new Date().toLocaleString('fr-FR');
+   560→  return {
+   561→    html: `
+   562→      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
+   563→        <div style="text-align: center; margin-bottom: 30px;">
+   564→          <h1 style="color: #2563EB; margin: 0;">QRBag</h1>
+   565→        </div>
+   566→        <div style="background: #eef2ff; border: 2px solid #6366f1; border-radius: 10px; padding: 30px;">
+   567→          <h2 style="color: #4f46e5; margin-top: 0;">🏢 Nouvelle agence créée</h2>
+   568→          <p style="color: #666;">Une nouvelle agence a été ajoutée au système :</p>
+   569→          <table style="width: 100%; border-collapse: collapse; margin-top: 20px;">
+   570→            <tr>
+   571→              <td style="padding: 8px 0; color: #999; font-size: 14px; border-bottom: 1px solid #eee;">Nom de l'agence</td>
+   572→              <td style="padding: 8px 0; font-weight: bold; color: #333; border-bottom: 1px solid #eee;">${data.name}</td>
+   573→            </tr>
+   574→            ${data.email ? `
+   575→            <tr>
+   576→              <td style="padding: 8px 0; color: #999; font-size: 14px; border-bottom: 1px solid #eee;">Email</td>
+   577→              <td style="padding: 8px 0; font-weight: bold; color: #333; border-bottom: 1px solid #eee;">${data.email}</td>
+   578→            </tr>` : ''}
+   579→            ${data.phone ? `
+   580→            <tr>
+   581→              <td style="padding: 8px 0; color: #999; font-size: 14px; border-bottom: 1px solid #eee;">Téléphone</td>
+   582→              <td style="padding: 8px 0; font-weight: bold; color: #333; border-bottom: 1px solid #eee;">${data.phone}</td>
+   583→            </tr>` : ''}
+   584→            ${data.address ? `
+   585→            <tr>
+   586→              <td style="padding: 8px 0; color: #999; font-size: 14px;">Adresse</td>
+   587→              <td style="padding: 8px 0; font-weight: bold; color: #333;">${data.address}</td>
+   588→            </tr>` : ''}
+   589→          </table>
+   590→        </div>
+   591→        <p style="color: #999; font-size: 12px; text-align: center; margin-top: 20px;">Notification automatique QRBag — ${now}</p>
+   592→        <div style="text-align: center; color: #999; font-size: 12px;">
+   593→          <p>© QRBag - Tous droits réservés</p>
+   594→        </div>
+   595→      </div>
+   596→    `,
+   597→    text: `🏢 QRBag - Nouvelle agence créée\n\nNom: ${data.name}\nEmail: ${data.email || 'Non renseigné'}\nTéléphone: ${data.phone || 'Non renseigné'}\nAdresse: ${data.address || 'Non renseignée'}\n\nNotification automatique QRBag — ${now}\n© QRBag`,
+   598→  };
+   599→}
+   600→
+   601→export function getAgencyMessageEmailTemplate(data: {
+   602→  agencyName: string;
+   603→  subject?: string;
+   604→  message: string;
+   605→  priority?: string;
+   606→  senderEmail?: string;
+   607→}): { html: string; text: string } {
+   608→  const now = new Date().toLocaleString('fr-FR');
+   609→  const priorityBadge = data.priority === 'urgent'
+   610→    ? '<span style="background:#fee2e2;color:#dc2626;padding:4px 10px;border-radius:20px;font-size:12px;font-weight:bold;">🔴 URGENT</span>'
+   611→    : data.priority === 'high'
+   612→    ? '<span style="background:#fef3c7;color:#d97706;padding:4px 10px;border-radius:20px;font-size:12px;font-weight:bold;">🟡 HAUTE</span>'
+   613→    : '';
+   614→  return {
+   615→    html: `
+   616→      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
+   617→        <div style="text-align: center; margin-bottom: 30px;">
+   618→          <h1 style="color: #2563EB; margin: 0;">QRBag</h1>
+   619→        </div>
+   620→        <div style="background: #fffbeb; border: 2px solid #f59e0b; border-radius: 10px; padding: 30px;">
+   621→          <h2 style="color: #d97706; margin-top: 0;">💬 Nouveau message d'une agence</h2>
+   622→          ${priorityBadge ? `<div style="margin: 10px 0;">${priorityBadge}</div>` : ''}
+   623→          <table style="width: 100%; border-collapse: collapse; margin-top: 15px;">
+   624→            <tr>
+   625→              <td style="padding: 8px 0; color: #999; font-size: 14px; border-bottom: 1px solid #eee;">Agence</td>
+   626→              <td style="padding: 8px 0; font-weight: bold; color: #333; border-bottom: 1px solid #eee;">${data.agencyName}</td>
+   627→            </tr>
+   628→            ${data.subject ? `
+   629→            <tr>
+   630→              <td style="padding: 8px 0; color: #999; font-size: 14px; border-bottom: 1px solid #eee;">Sujet</td>
+   631→              <td style="padding: 8px 0; font-weight: bold; color: #333; border-bottom: 1px solid #eee;">${data.subject}</td>
+   632→            </tr>` : ''}
+   633→            ${data.senderEmail ? `
+   634→            <tr>
+   635→              <td style="padding: 8px 0; color: #999; font-size: 14px; border-bottom: 1px solid #eee;">Email agence</td>
+   636→              <td style="padding: 8px 0; font-weight: bold; color: #333; border-bottom: 1px solid #eee;">${data.senderEmail}</td>
+   637→            </tr>` : ''}
+   638→          </table>
+   639→          <div style="background: #fff; border: 1px solid #fde68a; border-radius: 8px; padding: 15px; margin-top: 20px;">
+   640→            <p style="color: #333; font-size: 14px; line-height: 1.6; white-space: pre-wrap;">${data.message}</p>
+   641→          </div>
+   642→        </div>
+   643→        <p style="color: #999; font-size: 12px; text-align: center; margin-top: 20px;">Notification automatique QRBag — ${now}</p>
+   644→        <div style="text-align: center; color: #999; font-size: 12px;">
+   645→          <p>© QRBag - Tous droits réservés</p>
+   646→        </div>
+   647→      </div>
+   648→    `,
+   649→    text: `💬 QRBag - Nouveau message d'une agence\n\nAgence: ${data.agencyName}\n${data.subject ? `Sujet: ${data.subject}\n` : ''}${data.senderEmail ? `Email: ${data.senderEmail}\n` : ''}${data.priority ? `Priorité: ${data.priority}\n` : ''}\nMessage:\n${data.message}\n\nNotification automatique QRBag — ${now}\n© QRBag`,
+   650→  };
+   651→}
+   652→
+   653→export function getNewLeadEmailTemplate(data: {
+   654→  name: string;
+   655→  email: string;
+   656→  phone?: string;
+   657→  company?: string;
+   658→  source?: string;
+   659→  notes?: string;
+   660→}): { html: string; text: string } {
+   661→  const now = new Date().toLocaleString('fr-FR');
+   662→  return {
+   663→    html: `
+   664→      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
+   665→        <div style="text-align: center; margin-bottom: 30px;">
+   666→          <h1 style="color: #2563EB; margin: 0;">QRBag</h1>
+   667→        </div>
+   668→        <div style="background: #f0fdf4; border: 2px solid #22c55e; border-radius: 10px; padding: 30px;">
+   669→          <h2 style="color: #2563EB; margin-top: 0;">🆕 Nouveau lead CRM</h2>
+   670→          <p style="color: #666;">Un nouveau prospect a été ajouté :</p>
+   671→          <table style="width: 100%; border-collapse: collapse; margin-top: 20px;">
+   672→            <tr>
+   673→              <td style="padding: 8px 0; color: #999; font-size: 14px; border-bottom: 1px solid #eee;">Nom</td>
+   674→              <td style="padding: 8px 0; font-weight: bold; color: #333; border-bottom: 1px solid #eee;">${data.name}</td>
+   675→            </tr>
+   676→            <tr>
+   677→              <td style="padding: 8px 0; color: #999; font-size: 14px; border-bottom: 1px solid #eee;">Email</td>
+   678→              <td style="padding: 8px 0; font-weight: bold; color: #333; border-bottom: 1px solid #eee;">${data.email}</td>
+   679→            </tr>
+   680→            ${data.phone ? `
+   681→            <tr>
+   682→              <td style="padding: 8px 0; color: #999; font-size: 14px; border-bottom: 1px solid #eee;">Téléphone</td>
+   683→              <td style="padding: 8px 0; font-weight: bold; color: #333; border-bottom: 1px solid #eee;">${data.phone}</td>
+   684→            </tr>` : ''}
+   685→            ${data.company ? `
+   686→            <tr>
+   687→              <td style="padding: 8px 0; color: #999; font-size: 14px; border-bottom: 1px solid #eee;">Entreprise</td>
+   688→              <td style="padding: 8px 0; font-weight: bold; color: #333; border-bottom: 1px solid #eee;">${data.company}</td>
+   689→            </tr>` : ''}
+   690→            ${data.source ? `
+   691→            <tr>
+   692→              <td style="padding: 8px 0; color: #999; font-size: 14px;">Source</td>
+   693→              <td style="padding: 8px 0; font-weight: bold; color: #333;">${data.source}</td>
+   694→            </tr>` : ''}
+   695→          </table>
+   696→          ${data.notes ? `<div style="background: #fff; border: 1px solid #bbf7d0; border-radius: 8px; padding: 15px; margin-top: 20px;"><p style="color: #666; font-size: 14px;"><strong>Notes :</strong> ${data.notes}</p></div>` : ''}
+   697→        </div>
+   698→        <p style="color: #999; font-size: 12px; text-align: center; margin-top: 20px;">Notification automatique QRBag — ${now}</p>
+   699→        <div style="text-align: center; color: #999; font-size: 12px;">
+   700→          <p>© QRBag - Tous droits réservés</p>
+   701→        </div>
+   702→      </div>
+   703→    `,
+   704→    text: `🆕 QRBag - Nouveau lead CRM\n\nNom: ${data.name}\nEmail: ${data.email}\nTéléphone: ${data.phone || 'Non renseigné'}\nEntreprise: ${data.company || 'Non renseignée'}\nSource: ${data.source || 'Non renseignée'}\n${data.notes ? `Notes: ${data.notes}\n` : ''}\nNotification automatique QRBag — ${now}\n© QRBag`,
+   705→  };
+   706→}
+   707→
+   708→export async function verifyEmailCode(code: string, email: string, type: 'email_verification' | 'password_reset'): Promise<{ valid: boolean; error?: string }> {
+   709→  const emailToken = await prisma.emailToken.findFirst({
+   710→    where: {
+   711→      email,
+   712→      code,
+   713→      type,
+   714→      used: false,
+   715→      expiresAt: { gt: new Date() }
+   716→    }
+   717→  });
+   718→  
+   719→  if (!emailToken) {
+   720→    return { valid: false, error: 'Code invalide ou expiré' };
+   721→  }
+   722→  
+   723→  // Mark as used
+   724→  await prisma.emailToken.update({
+   725→    where: { id: emailToken.id },
+   726→    data: { used: true, usedAt: new Date() }
+   727→  });
+   728→  
+   729→  return { valid: true };
+   730→}
+   731→
+   732→// ═══════════════════════════════════════════════════════
+   733→//  refonte-8: CHECKLIST EMAIL TEMPLATE
+   734→// ═══════════════════════════════════════════════════════
+   735→
+   736→export interface ChecklistEmailData {
+   737→  firstName: string;
+   738→  lastName: string;
+   739→  code: string;            // public 6-char code
+   740→  verificationKey: string; // 8-char key required to view PDF
+   741→  publicUrl: string;       // absolute URL to /checklist/[code]
+   742→  itemsCount: number;
+   743→  destination: string;
+   744→  departureDate: string;
+   745→}
+   746→
+   747→export function getChecklistEmailTemplate(data: ChecklistEmailData): { html: string; text: string } {
+   748→  const { firstName, lastName, code, verificationKey, publicUrl, itemsCount, destination, departureDate } = data;
+   749→  const fullName = `${firstName} ${lastName}`.trim();
+   750→
+   751→  const html = `
+   752→<!DOCTYPE html>
+   753→<html lang="fr">
+   754→<head><meta charset="UTF-8"><title>Attestation d'inventaire QRBag</title></head>
+   755→<body style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; background-color: #FDFBF7;">
+   756→
+   757→  <!-- Header band -->
+   758→  <div style="background: #c5a643; padding: 20px 24px; border-radius: 12px 12px 0 0; border: 2px solid #1a1a1a; border-bottom: none;">
+   759→    <div style="font-size: 22px; font-weight: bold; color: #1a1a1a;">🎒 QRBag</div>
+   760→    <div style="font-size: 12px; color: #1a1a1a; opacity: 0.75;">Attestation d'inventaire de voyage</div>
+   761→  </div>
+   762→
+   763→  <!-- Body -->
+   764→  <div style="background: #ffffff; padding: 30px 24px; border: 2px solid #1a1a1a; border-top: none;">
+   765→    <h1 style="color: #1a1a1a; font-size: 22px; margin: 0 0 16px 0;">Bonjour ${firstName},</h1>
+   766→
+   767→    <p style="color: #1a1a1a; line-height: 1.6; margin: 0 0 16px 0;">
+   768→      Votre attestation d'inventaire de voyage a été générée et certifiée électroniquement par QRBag.
+   769→      Elle contient <strong>${itemsCount} article${itemsCount > 1 ? 's' : ''}</strong> pour votre voyage vers
+   770→      <strong>${destination}</strong> prévu le <strong>${departureDate}</strong>.
+   771→    </p>
+   772→
+   773→    <p style="color: #1a1a1a; line-height: 1.6; margin: 0 0 24px 0;">
+   774→      Le PDF horodaté est joint à cet email. Vous pouvez également le consulter en ligne sur la page publique ci-dessous.
+   775→    </p>
+   776→
+   777→    <!-- Public URL block -->
+   778→    <div style="background: #fffbe6; border: 2px dashed #1a1a1a; border-radius: 10px; padding: 16px 20px; margin-bottom: 20px;">
+   779→      <div style="font-size: 11px; color: #666; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 6px;">🔗 URL publique de l'attestation</div>
+   780→      <div style="font-size: 14px; color: #1a1a1a; font-weight: bold; word-break: break-all;">${publicUrl}</div>
+   781→    </div>
+   782→
+   783→    <!-- Verification key block -->
+   784→    <div style="background: #fef2f2; border: 2px solid #c0392b; border-radius: 10px; padding: 16px 20px; margin-bottom: 24px;">
+   785→      <div style="font-size: 11px; color: #c0392b; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 6px;">🔑 Clé de vérification (requise pour consulter le PDF en ligne)</div>
+   786→      <div style="font-size: 24px; color: #c0392b; font-weight: bold; font-family: 'Courier New', monospace; letter-spacing: 4px;">${verificationKey}</div>
+   787→      <div style="font-size: 11px; color: #666; margin-top: 6px;">Code public : <strong>${code}</strong></div>
+   788→    </div>
+   789→
+   790→    <!-- How to use -->
+   791→    <div style="background: #f9f9f9; border-radius: 8px; padding: 16px 20px; margin-bottom: 24px;">
+   792→      <div style="font-size: 13px; font-weight: bold; color: #1a1a1a; margin-bottom: 8px;">📌 Comment utiliser votre attestation :</div>
+   793→      <ol style="color: #555; line-height: 1.7; padding-left: 20px; margin: 0; font-size: 12px;">
+   794→        <li>Ouvrez l'URL publique ci-dessus dans votre navigateur.</li>
+   795→        <li>Saisissez la clé de vérification à 8 caractères.</li>
+   796→        <li>Consultez, téléchargez ou imprimez votre attestation horodatée.</li>
+   797→        <li>Le QR code sur le PDF permet à toute personne de vérifier son authenticité.</li>
+   798→      </ol>
+   799→    </div>
+   800→
+   801→    <p style="color: #666; font-size: 12px; line-height: 1.5; margin: 0;">
+   802→      Conservez précieusement cet email. Il constitue votre preuve d'inventaire en cas de litige avec une compagnie aérienne.
+   803→    </p>
+   804→  </div>
+   805→
+   806→  <!-- Footer -->
+   807→  <div style="background: #1a1a1a; padding: 16px 24px; border-radius: 0 0 12px 12px; border: 2px solid #1a1a1a; border-top: none;">
+   808→    <div style="color: #c5a643; font-size: 12px; font-weight: bold;">QRBag — Protection intelligente des bagages</div>
+   809→    <div style="color: #999; font-size: 11px; margin-top: 4px;">qrbags.com • Document protégé par le protocole de certification QRBag</div>
+   810→  </div>
+   811→
+   812→</body>
+   813→</html>
+   814→  `.trim();
+   815→
+   816→  const text = `🎒 QRBag — Attestation d'inventaire de voyage
+   817→
+   818→Bonjour ${fullName},
+   819→
+   820→Votre attestation d'inventaire de voyage a été générée et certifiée électroniquement par QRBag.
+   821→Elle contient ${itemsCount} article${itemsCount > 1 ? 's' : ''} pour votre voyage vers ${destination} prévu le ${departureDate}.
+   822→
+   823→Le PDF horodaté est joint à cet email.
+   824→
+   825→═══════════════════════════════════════════════
+   826→🔗 URL PUBLIQUE DE L'ATTESTATION
+   827→${publicUrl}
+   828→
+   829→🔑 CLÉ DE VÉRIFICATION (requise pour consulter le PDF en ligne)
+   830→${verificationKey}
+   831→
+   832→Code public : ${code}
+   833→═══════════════════════════════════════════════
+   834→
+   835→Comment utiliser votre attestation :
+   836→1. Ouvrez l'URL publique ci-dessus dans votre navigateur.
+   837→2. Saisissez la clé de vérification à 8 caractères.
+   838→3. Consultez, téléchargez ou imprimez votre attestation.
+   839→4. Le QR code sur le PDF permet de vérifier son authenticité.
+   840→
+   841→Conservez précieusement cet email. Il constitue votre preuve d'inventaire en cas de litige.
+   842→
+   843→— L'équipe QRBag
+   844→qrbags.com
+   845→`.trim();
+   846→
+   847→  return { html, text };
+   848→}
+   849→

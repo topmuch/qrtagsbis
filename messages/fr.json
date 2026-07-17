@@ -1,0 +1,158 @@
+{
+  "common": {
+    "appName": "QRBag",
+    "tagline": "Ne perdez plus jamais un bagage"
+  },
+  "landing": {
+    "hero": {
+      "title": "Ne perdez plus jamais un bagage",
+      "subtitle": "Un autocollant QR intelligent pour protéger vos effets personnels. Sans application. Sans batterie. Sans GPS.",
+      "ctaHajj": "Je suis pèlerin (Hajj)",
+      "ctaVoyageur": "Je suis voyageur"
+    },
+    "howItWorks": {
+      "title": "Comment ça marche ?",
+      "hajj": {
+        "title": "Version Hajj",
+        "step1": "L'agence vous remet vos autocollants QR",
+        "step2": "Activez vos bagages en 30 secondes",
+        "step3": "En cas de perte, le trouveur vous contacte directement"
+      },
+      "voyageur": {
+        "title": "Version Voyageur",
+        "step1": "Commandez vos autocollants en ligne",
+        "step2": "Collez-les et activez-les avant le départ",
+        "step3": "Tranquillité d'esprit pendant tout le voyage"
+      }
+    },
+    "pricing": {
+      "title": "Tarifs simples et transparents",
+      "voyageurSticker": {
+        "title": "Voyageur Sticker",
+        "price": "4 €",
+        "duration": "5 jours",
+        "features": ["1 bagage", "Protection courte durée", "Idéal pour week-end"]
+      },
+      "voyageurTag": {
+        "title": "Voyageur Étiquette",
+        "price": "7 €",
+        "duration": "1 an",
+        "features": ["1 bagage", "Protection longue durée", "Idéal pour voyageurs fréquents"]
+      },
+      "hajj": {
+        "title": "Hajj",
+        "price": "10 €",
+        "duration": "2 mois",
+        "features": ["3 bagages inclus", "1 cabine + 2 soutes", "Gestion par l'agence"]
+      }
+    },
+    "contact": {
+      "title": "Contactez-nous",
+      "address": "Poissy, France",
+      "phone": "+33 7 45 34 93 39",
+      "email": "contact@qrbag.com"
+    }
+  },
+  "scan": {
+    "title": "Bagage de {name}",
+    "notFound": "Code QR non valide",
+    "notActivated": "Ce bagage n'a pas encore été activé",
+    "expired": "Ce bagage a expiré",
+    "blocked": "Ce bagage a été bloqué",
+    "foundTitle": "Vous avez trouvé ce bagage ?",
+    "foundSubtitle": "Aidez son propriétaire à le récupérer en quelques clics.",
+    "locationTitle": "Où se trouve le bagage ?",
+    "shareLocation": "Partager ma position",
+    "yourName": "Votre prénom (optionnel)",
+    "message": "Message (optionnel)",
+    "sendButton": "Contacter le propriétaire via WhatsApp",
+    "locations": {
+      "jedda": "Jeddah",
+      "medina": "Médine",
+      "mecca": "La Mecque",
+      "airport": "Aéroport",
+      "hotel": "Hôtel",
+      "trainStation": "Gare ferroviaire",
+      "other": "Autre lieu"
+    },
+    "whatsappMessage": "Bonjour, j'ai trouvé votre bagage ! Voici les détails :"
+  },
+  "activate": {
+    "hajj": {
+      "title": "Activation Bagage Hajj",
+      "subtitle": "Activez vos bagages en 30 secondes",
+      "firstName": "Prénom",
+      "lastName": "Nom",
+      "whatsapp": "Numéro WhatsApp (chef de groupe)",
+      "whatsappPlaceholder": "+221 78 485 82 26",
+      "submit": "Activer mes bagages",
+      "success": "Vos {count} bagages ont été activés avec succès !"
+    },
+    "voyageur": {
+      "title": "Activation Bagage Voyageur",
+      "subtitle": "Protégez vos bagages pour votre voyage",
+      "firstName": "Prénom",
+      "lastName": "Nom",
+      "flightNumber": "Numéro de vol",
+      "flightPlaceholder": "AF1234",
+      "destination": "Destination",
+      "destinationPlaceholder": "Paris, Tokyo, New York...",
+      "whatsapp": "Numéro WhatsApp",
+      "whatsappPlaceholder": "+33 6 12 34 56 78",
+      "submit": "Activer mon bagage",
+      "success": "Votre bagage a été activé avec succès !"
+    }
+  },
+  "dashboard": {
+    "agency": {
+      "title": "Dashboard Agence",
+      "total": "Total bagages",
+      "scanned": "Scannés",
+      "pending": "En attente",
+      "lost": "Perdus",
+      "found": "Retrouvés",
+      "searchPlaceholder": "Rechercher un bagage...",
+      "declareLost": "Déclarer perdu",
+      "declareFound": "Déclarer retrouvé",
+      "addUser": "Ajouter un chef secondaire"
+    },
+    "admin": {
+      "title": "SuperAdmin",
+      "agencies": "Agences",
+      "generateQR": "Générer des QR",
+      "users": "Utilisateurs",
+      "logs": "Logs des scans",
+      "settings": "Paramètres",
+      "pages": "Pages CMS"
+    }
+  },
+  "status": {
+    "pending_activation": "En attente",
+    "active": "Actif",
+    "scanned": "Scanné",
+    "lost": "Perdu",
+    "found": "Retrouvé",
+    "blocked": "Bloqué"
+  },
+  "finder": {
+    "ownerInfo": "Informations du propriétaire",
+    "fullName": "Nom complet",
+    "agency": "Agence",
+    "noAgency": "Non affilié",
+    "bagType": "Type de bagage",
+    "tripDetails": "Détails du voyage",
+    "flightNum": "Vol N°",
+    "destination": "Destination",
+    "departureDate": "Départ prévu",
+    "notSet": "Non renseigné",
+    "not_specified": "Non précisé",
+    "shareGps": "PARTAGER MA POSITION GPS",
+    "locating": "Localisation en cours...",
+    "geoError": "Impossible d'accéder à la position. Veuillez réessayer.",
+    "lost_badge": "BAGAGE SIGNALÉ PERDU !",
+    "lost_description": "Ce bagage est signalé perdu. Merci d'aider à le retrouver.",
+    "found_description": "Merci d'avoir aidé à localiser ce bagage.",
+    "gps_security_note": "Votre position sera envoyée de manière sécurisée.",
+    "success_title": "Wahoo !"
+  }
+}

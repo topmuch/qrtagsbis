@@ -1,0 +1,158 @@
+{
+  "common": {
+    "appName": "QRBag",
+    "tagline": "لن تفقد أمتعتك أبدًا"
+  },
+  "landing": {
+    "hero": {
+      "title": "لن تفقد أمتعتك أبدًا",
+      "subtitle": "ملصق QR ذكي لحماية ممتلكاتك. بدون تطبيق. بدون بطارية. بدون GPS.",
+      "ctaHajj": "أنا حاج",
+      "ctaVoyageur": "أنا مسافر"
+    },
+    "howItWorks": {
+      "title": "كيف يعمل؟",
+      "hajj": {
+        "title": "نسخة الحج",
+        "step1": "الوكالة تعطيك ملصقات QR",
+        "step2": "فعّل أمتعتك في 30 ثانية",
+        "step3": "إذا فقدت، يتصل بك من يعثر عليها مباشرة"
+      },
+      "voyageur": {
+        "title": "نسخة المسافر",
+        "step1": "اطلب ملصقاتك عبر الإنترنت",
+        "step2": "الصقها وفعلها قبل المغادرة",
+        "step3": "راحة البال طوال رحلتك"
+      }
+    },
+    "pricing": {
+      "title": "أسعار بسيطة وشفافة",
+      "voyageurSticker": {
+        "title": "ملصق المسافر",
+        "price": "4 €",
+        "duration": "5 أيام",
+        "features": ["حقيبة واحدة", "حماية قصيرة المدى", "مثالي لعطلة نهاية الأسبوع"]
+      },
+      "voyageurTag": {
+        "title": "بطاقة المسافر",
+        "price": "7 €",
+        "duration": "سنة واحدة",
+        "features": ["حقيبة واحدة", "حماية طويلة المدى", "مثالي للمسافرين المتكررين"]
+      },
+      "hajj": {
+        "title": "الحج",
+        "price": "10 €",
+        "duration": "شهران",
+        "features": ["3 حقائب مشمولة", "1 يد + 2 تسليم", "إدارة الوكالة"]
+      }
+    },
+    "contact": {
+      "title": "اتصل بنا",
+      "address": "بوسي، فرنسا",
+      "phone": "+33 7 45 34 93 39",
+      "email": "contact@qrbag.com"
+    }
+  },
+  "scan": {
+    "title": "أمتعة {name}",
+    "notFound": "رمز QR غير صالح",
+    "notActivated": "لم يتم تفعيل هذه الأمتعة بعد",
+    "expired": "انتهت صلاحية هذه الأمتعة",
+    "blocked": "تم حظر هذه الأمتعة",
+    "foundTitle": "هل وجدت هذه الأمتعة؟",
+    "foundSubtitle": "ساعد مالكها على استعادتها في بضع نقرات.",
+    "locationTitle": "أين توجد الأمتعة؟",
+    "shareLocation": "مشاركة موقعي",
+    "yourName": "اسمك (اختياري)",
+    "message": "رسالة (اختيارية)",
+    "sendButton": "اتصل بالمالك عبر واتساب",
+    "locations": {
+      "jedda": "جدة",
+      "medina": "المدينة المنورة",
+      "mecca": "مكة المكرمة",
+      "airport": "المطار",
+      "hotel": "الفندق",
+      "trainStation": "محطة القطار",
+      "other": "مكان آخر"
+    },
+    "whatsappMessage": "مرحبًا، وجدت أمتعتك! إليك التفاصيل:"
+  },
+  "activate": {
+    "hajj": {
+      "title": "تفعيل أمتعة الحج",
+      "subtitle": "فعّل أمتعتك في 30 ثانية",
+      "firstName": "الاسم الأول",
+      "lastName": "اسم العائلة",
+      "whatsapp": "رقم واتساب (رئيس المجموعة)",
+      "whatsappPlaceholder": "+221 78 485 82 26",
+      "submit": "تفعيل أمتعتي",
+      "success": "تم تفعيل {count} من أمتعتك بنجاح!"
+    },
+    "voyageur": {
+      "title": "تفعيل أمتعة المسافر",
+      "subtitle": "احمِ أمتعتك لرحلتك",
+      "firstName": "الاسم الأول",
+      "lastName": "اسم العائلة",
+      "flightNumber": "رقم الرحلة",
+      "flightPlaceholder": "AF1234",
+      "destination": "الوجهة",
+      "destinationPlaceholder": "باريس، طوكيو، نيويورك...",
+      "whatsapp": "رقم واتساب",
+      "whatsappPlaceholder": "+33 6 12 34 56 78",
+      "submit": "تفعيل أمتعتي",
+      "success": "تم تفعيل أمتعتك بنجاح!"
+    }
+  },
+  "dashboard": {
+    "agency": {
+      "title": "لوحة تحكم الوكالة",
+      "total": "إجمالي الأمتعة",
+      "scanned": "تم مسحها",
+      "pending": "قيد الانتظار",
+      "lost": "مفقودة",
+      "found": "تم العثور عليها",
+      "searchPlaceholder": "البحث عن أمتعة...",
+      "declareLost": "الإبلاغ عن فقدان",
+      "declareFound": "الإبلاغ عن العثور",
+      "addUser": "إضافة قائد ثانوي"
+    },
+    "admin": {
+      "title": "الإدارة العليا",
+      "agencies": "الوكالات",
+      "generateQR": "إنشاء QR",
+      "users": "المستخدمون",
+      "logs": "سجلات المسح",
+      "settings": "الإعدادات",
+      "pages": "صفحات CMS"
+    }
+  },
+  "status": {
+    "pending_activation": "قيد الانتظار",
+    "active": "نشط",
+    "scanned": "تم مسحه",
+    "lost": "مفقود",
+    "found": "تم العثور عليه",
+    "blocked": "محظور"
+  },
+  "finder": {
+    "ownerInfo": "معلومات المالك",
+    "fullName": "الاسم الكامل",
+    "agency": "الوكالة",
+    "noAgency": "غير تابع",
+    "bagType": "نوع الأمتعة",
+    "tripDetails": "تفاصيل الرحلة",
+    "flightNum": "الرحلة رقم",
+    "destination": "الوجهة",
+    "departureDate": "تاريخ المغادرة",
+    "notSet": "غير محدد",
+    "not_specified": "غير محدد",
+    "shareGps": "مشاركة موقعي GPS",
+    "locating": "جارٍ تحديد الموقع...",
+    "geoError": "تعذر الوصول إلى الموقع. يرجى المحاولة مرة أخرى.",
+    "lost_badge": "تم الإبلاغ عن فقدان الأمتعة!",
+    "lost_description": "تم الإبلاغ عن فقدان هذه الأمتعة. يرجى المساعدة في العثور عليها.",
+    "found_description": "شكراً لمساعدتك في تحديد موقع هذه الأمتعة.",
+    "gps_security_note": "سيتم إرسال موقعك بشكل آمن.",
+    "success_title": "واوو!"
+  }
+}

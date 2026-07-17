@@ -1,0 +1,708 @@
+     1→'use client';
+     2→
+     3→import { useState, useEffect } from 'react';
+     4→import { Button } from "@/components/ui/button";
+     5→import { Card, CardContent } from "@/components/ui/card";
+     6→import { Input } from "@/components/ui/input";
+     7→import { Label } from "@/components/ui/label";
+     8→import { Badge } from "@/components/ui/badge";
+     9→import {
+    10→  Dialog,
+    11→  DialogContent,
+    12→  DialogHeader,
+    13→  DialogTitle,
+    14→  DialogTrigger,
+    15→} from "@/components/ui/dialog";
+    16→import {
+    17→  Plus,
+    18→  Trash2,
+    19→  Edit,
+    20→  CheckCircle,
+    21→  Building,
+    22→  RefreshCw,
+    23→  Mail,
+    24→  Phone,
+    25→  Users,
+    26→  Loader2,
+    27→} from "lucide-react";
+    28→
+    29→// Types
+    30→interface Agency {
+    31→  id: string;
+    32→  name: string;
+    33→  slug: string;
+    34→  email: string | null;
+    35→  phone: string | null;
+    36→  active: boolean;
+    37→  createdAt: string;
+    38→  _count?: {
+    39→    baggages: number;
+    40→    users: number;
+    41→  };
+    42→}
+    43→
+    44→export default function AgencesPage() {
+    45→  const [agencies, setAgencies] = useState<Agency[]>([]);
+    46→  const [loading, setLoading] = useState(true);
+    47→  const [agencyCreating, setAgencyCreating] = useState(false);
+    48→  const [successMessage, setSuccessMessage] = useState('');
+    49→  const [errorMessage, setErrorMessage] = useState('');
+    50→  const [dialogOpen, setDialogOpen] = useState(false);
+    51→
+    52→  // Edit state
+    53→  const [editDialogOpen, setEditDialogOpen] = useState(false);
+    54→  const [editAgencyId, setEditAgencyId] = useState<string | null>(null);
+    55→  const [editSaving, setEditSaving] = useState(false);
+    56→  const [editError, setEditError] = useState('');
+    57→  const [editSuccess, setEditSuccess] = useState('');
+    58→
+    59→  const [editForm, setEditForm] = useState({
+    60→    name: '',
+    61→    slug: '',
+    62→    email: '',
+    63→    phone: '',
+    64→    active: true,
+    65→    newPassword: '',
+    66→    confirmPassword: '',
+    67→  });
+    68→
+    69→  const [agencyForm, setAgencyForm] = useState({
+    70→    name: '',
+    71→    slug: '',
+    72→    email: '',
+    73→    phone: '',
+    74→    password: '',
+    75→    confirmPassword: '',
+    76→  });
+    77→
+    78→  useEffect(() => {
+    79→    fetchAgencies();
+    80→  }, []);
+    81→
+    82→  const fetchAgencies = async () => {
+    83→    setLoading(true);
+    84→    try {
+    85→      const res = await fetch('/api/admin/agencies');
+    86→      const data = await res.json();
+    87→      setAgencies(data.agencies || []);
+    88→    } catch (error) {
+    89→      console.error('Error fetching agencies:', error);
+    90→    } finally {
+    91→      setLoading(false);
+    92→    }
+    93→  };
+    94→
+    95→  const handleCreateAgency = async () => {
+    96→    if (!agencyForm.email) {
+    97→      setErrorMessage("L'email est obligatoire");
+    98→      return;
+    99→    }
+   100→    if (!agencyForm.password || agencyForm.password.length < 8) {
+   101→      setErrorMessage('Le mot de passe doit contenir au moins 8 caractères');
+   102→      return;
+   103→    }
+   104→    if (!/[A-Z]/.test(agencyForm.password)) {
+   105→      setErrorMessage('Le mot de passe doit contenir au moins une majuscule');
+   106→      return;
+   107→    }
+   108→    if (!/\d/.test(agencyForm.password)) {
+   109→      setErrorMessage('Le mot de passe doit contenir au moins un chiffre');
+   110→      return;
+   111→    }
+   112→    if (agencyForm.password !== agencyForm.confirmPassword) {
+   113→      setErrorMessage('Les mots de passe ne correspondent pas');
+   114→      return;
+   115→    }
+   116→
+   117→    setAgencyCreating(true);
+   118→    setErrorMessage('');
+   119→
+   120→    try {
+   121→      const agencyResponse = await fetch('/api/admin/agencies', {
+   122→        method: 'POST',
+   123→        headers: { 'Content-Type': 'application/json' },
+   124→        body: JSON.stringify({
+   125→          name: agencyForm.name,
+   126→          slug: agencyForm.slug,
+   127→          email: agencyForm.email,
+   128→          phone: agencyForm.phone,
+   129→        }),
+   130→      });
+   131→
+   132→      if (agencyResponse.ok) {
+   133→        const agencyData = await agencyResponse.json();
+   134→
+   135→        await fetch('/api/admin/users', {
+   136→          method: 'POST',
+   137→          headers: { 'Content-Type': 'application/json' },
+   138→          body: JSON.stringify({
+   139→            email: agencyForm.email,
+   140→            name: agencyForm.name,
+   141→            password: agencyForm.password,
+   142→            role: 'agency',
+   143→            agencyId: agencyData.agency.id,
+   144→          }),
+   145→        });
+   146→
+   147→        setSuccessMessage(`Agence "${agencyForm.name}" créée avec succès !`);
+   148→        fetchAgencies();
+   149→        setDialogOpen(false);
+   150→        setAgencyForm({ name: '', slug: '', email: '', phone: '', password: '', confirmPassword: '' });
+   151→        setTimeout(() => setSuccessMessage(''), 5000);
+   152→      } else {
+   153→        const error = await agencyResponse.json();
+   154→        setErrorMessage(error.error || 'Erreur lors de la création');
+   155→      }
+   156→    } catch (error) {
+   157→      console.error('Error creating agency:', error);
+   158→      setErrorMessage("Erreur lors de la création de l'agence");
+   159→    } finally {
+   160→      setAgencyCreating(false);
+   161→    }
+   162→  };
+   163→
+   164→  const handleDeleteAgency = async (id: string) => {
+   165→    if (!confirm('Êtes-vous sûr de vouloir supprimer cette agence ?')) return;
+   166→
+   167→    try {
+   168→      const response = await fetch(`/api/admin/agencies?id=${id}`, {
+   169→        method: 'DELETE',
+   170→      });
+   171→
+   172→      if (response.ok) {
+   173→        setSuccessMessage('Agence supprimée avec succès');
+   174→        fetchAgencies();
+   175→        setTimeout(() => setSuccessMessage(''), 5000);
+   176→      }
+   177→    } catch (error) {
+   178→      console.error('Error deleting agency:', error);
+   179→    }
+   180→  };
+   181→
+   182→  // Open edit dialog with agency data
+   183→  const handleOpenEdit = (agency: Agency) => {
+   184→    setEditAgencyId(agency.id);
+   185→    setEditForm({
+   186→      name: agency.name,
+   187→      slug: agency.slug,
+   188→      email: agency.email || '',
+   189→      phone: agency.phone || '',
+   190→      active: agency.active,
+   191→      newPassword: '',
+   192→      confirmPassword: '',
+   193→    });
+   194→    setEditError('');
+   195→    setEditSuccess('');
+   196→    setEditDialogOpen(true);
+   197→  };
+   198→
+   199→  // Save edit
+   200→  const handleSaveEdit = async () => {
+   201→    if (!editAgencyId) return;
+   202→    if (!editForm.name.trim()) {
+   203→      setEditError('Le nom est obligatoire');
+   204→      return;
+   205→    }
+   206→    if (!editForm.slug.trim()) {
+   207→      setEditError('Le slug est obligatoire');
+   208→      return;
+   209→    }
+   210→    // Validate new password if provided
+   211→    if (editForm.newPassword) {
+   212→      if (editForm.newPassword.length < 8) {
+   213→        setEditError('Le mot de passe doit contenir au moins 8 caractères');
+   214→        return;
+   215→      }
+   216→      if (!/[A-Z]/.test(editForm.newPassword)) {
+   217→        setEditError('Le mot de passe doit contenir au moins une majuscule');
+   218→        return;
+   219→      }
+   220→      if (!/\d/.test(editForm.newPassword)) {
+   221→        setEditError('Le mot de passe doit contenir au moins un chiffre');
+   222→        return;
+   223→      }
+   224→      if (editForm.newPassword !== editForm.confirmPassword) {
+   225→        setEditError('Les mots de passe ne correspondent pas');
+   226→        return;
+   227→      }
+   228→    }
+   229→
+   230→    setEditSaving(true);
+   231→    setEditError('');
+   232→    setEditSuccess('');
+   233→
+   234→    try {
+   235→      // Update agency info
+   236→      const response = await fetch('/api/admin/agencies', {
+   237→        method: 'PUT',
+   238→        headers: { 'Content-Type': 'application/json' },
+   239→        body: JSON.stringify({
+   240→          id: editAgencyId,
+   241→          name: editForm.name,
+   242→          slug: editForm.slug,
+   243→          email: editForm.email,
+   244→          phone: editForm.phone,
+   245→          active: editForm.active,
+   246→        }),
+   247→      });
+   248→
+   249→      if (response.ok) {
+   250→        // Update password if a new one was provided
+   251→        if (editForm.newPassword) {
+   252→          try {
+   253→            // Find the agency user to get their user ID
+   254→            const usersRes = await fetch('/api/admin/users');
+   255→            if (usersRes.ok) {
+   256→              const usersData = await usersRes.json();
+   257→              const agencyUser = (usersData.users || []).find(
+   258→                (u: { agencyId: string | null; role: string }) => u.agencyId === editAgencyId && u.role === 'agency'
+   259→              );
+   260→              if (agencyUser) {
+   261→                await fetch('/api/admin/users', {
+   262→                  method: 'PUT',
+   263→                  headers: { 'Content-Type': 'application/json' },
+   264→                  body: JSON.stringify({
+   265→                    id: agencyUser.id,
+   266→                    password: editForm.newPassword,
+   267→                  }),
+   268→                });
+   269→              }
+   270→            }
+   271→          } catch (pwdErr) {
+   272→            console.error('Error updating password:', pwdErr);
+   273→          }
+   274→        }
+   275→
+   276→        setEditSuccess('Agence modifiée avec succès !');
+   277→        fetchAgencies();
+   278→        setTimeout(() => {
+   279→          setEditDialogOpen(false);
+   280→          setEditSuccess('');
+   281→        }, 1500);
+   282→      } else {
+   283→        const data = await response.json();
+   284→        setEditError(data.error || 'Erreur lors de la modification');
+   285→      }
+   286→    } catch (error) {
+   287→      console.error('Error updating agency:', error);
+   288→      setEditError('Erreur lors de la modification');
+   289→    } finally {
+   290→      setEditSaving(false);
+   291→    }
+   292→  };
+   293→
+   294→  // Toggle agency active status
+   295→  const handleToggleActive = async (agency: Agency) => {
+   296→    try {
+   297→      const response = await fetch('/api/admin/agencies', {
+   298→        method: 'PUT',
+   299→        headers: { 'Content-Type': 'application/json' },
+   300→        body: JSON.stringify({
+   301→          id: agency.id,
+   302→          name: agency.name,
+   303→          slug: agency.slug,
+   304→          email: agency.email || '',
+   305→          phone: agency.phone || '',
+   306→          active: !agency.active,
+   307→        }),
+   308→      });
+   309→
+   310→      if (response.ok) {
+   311→        setSuccessMessage(`Agence ${!agency.active ? 'activée' : 'désactivée'} avec succès`);
+   312→        fetchAgencies();
+   313→        setTimeout(() => setSuccessMessage(''), 5000);
+   314→      }
+   315→    } catch (error) {
+   316→      console.error('Error toggling agency status:', error);
+   317→    }
+   318→  };
+   319→
+   320→  return (
+   321→    <div className="max-w-6xl mx-auto">
+   322→      {/* Page Header */}
+   323→      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-8">
+   324→        <div>
+   325→          <h1 className="text-2xl font-bold text-slate-800 dark:text-white">Agences Partenaires</h1>
+   326→          <p className="text-slate-500 dark:text-slate-400 mt-1">Gérez les agences de voyage partenaires</p>
+   327→        </div>
+   328→        <div className="flex items-center gap-3">
+   329→          <Button
+   330→            onClick={fetchAgencies}
+   331→            variant="outline"
+   332→            className="border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800 rounded-xl"
+   333→          >
+   334→            <RefreshCw className={`w-4 h-4 mr-2 ${loading ? 'animate-spin' : ''}`} />
+   335→            Actualiser
+   336→          </Button>
+   337→          <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
+   338→            <DialogTrigger asChild>
+   339→              <Button className="bg-blue-600 hover:bg-blue-700 text-white rounded-xl">
+   340→                <Plus className="w-4 h-4 mr-2" />
+   341→                Nouvelle agence
+   342→              </Button>
+   343→            </DialogTrigger>
+   344→            <DialogContent className="bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-800 dark:text-white">
+   345→              <DialogHeader>
+   346→                <DialogTitle>Créer une agence</DialogTitle>
+   347→              </DialogHeader>
+   348→              <div className="space-y-4 pt-4">
+   349→                {errorMessage && (
+   350→                  <div className="bg-red-50 dark:bg-red-900/30 border border-red-200 dark:border-red-800 text-red-600 dark:text-red-400 px-4 py-3 rounded-xl text-sm">
+   351→                    {errorMessage}
+   352→                  </div>
+   353→                )}
+   354→                <div className="space-y-2">
+   355→                  <Label className="text-slate-700 dark:text-slate-300">Nom de l&apos;agence *</Label>
+   356→                  <Input
+   357→                    placeholder="Ashraf Voyages"
+   358→                    value={agencyForm.name}
+   359→                    onChange={(e) => {
+   360→                      const name = e.target.value;
+   361→                      setAgencyForm({
+   362→                        ...agencyForm,
+   363→                        name,
+   364→                        slug: name.toLowerCase().replace(/\s+/g, '_').replace(/[^a-z0-9_]/g, '')
+   365→                      });
+   366→                    }}
+   367→                    className="bg-white dark:bg-slate-700 border-slate-200 dark:border-slate-600 text-slate-800 dark:text-white"
+   368→                  />
+   369→                </div>
+   370→                <div className="space-y-2">
+   371→                  <Label className="text-slate-700 dark:text-slate-300">Slug *</Label>
+   372→                  <Input
+   373→                    placeholder="ashraf_voyages"
+   374→                    value={agencyForm.slug}
+   375→                    onChange={(e) => setAgencyForm({ ...agencyForm, slug: e.target.value })}
+   376→                    className="bg-white dark:bg-slate-700 border-slate-200 dark:border-slate-600 text-slate-800 dark:text-white"
+   377→                  />
+   378→                </div>
+   379→                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+   380→                  <div className="space-y-2">
+   381→                    <Label className="text-slate-700 dark:text-slate-300">Email *</Label>
+   382→                    <Input
+   383→                      type="email"
+   384→                      placeholder="contact@agence.com"
+   385→                      value={agencyForm.email}
+   386→                      onChange={(e) => setAgencyForm({ ...agencyForm, email: e.target.value })}
+   387→                      className="bg-white dark:bg-slate-700 border-slate-200 dark:border-slate-600 text-slate-800 dark:text-white"
+   388→                    />
+   389→                  </div>
+   390→                  <div className="space-y-2">
+   391→                    <Label className="text-slate-700 dark:text-slate-300">Téléphone</Label>
+   392→                    <Input
+   393→                      placeholder="+33 6 00 00 00 00"
+   394→                      value={agencyForm.phone}
+   395→                      onChange={(e) => setAgencyForm({ ...agencyForm, phone: e.target.value })}
+   396→                      className="bg-white dark:bg-slate-700 border-slate-200 dark:border-slate-600 text-slate-800 dark:text-white"
+   397→                    />
+   398→                  </div>
+   399→                </div>
+   400→                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+   401→                  <div className="space-y-2">
+   402→                    <Label className="text-slate-700 dark:text-slate-300">Mot de passe *</Label>
+   403→                    <Input
+   404→                      type="password"
+   405→                      placeholder="Min 8 car., 1 maj, 1 chiffre"
+   406→                      value={agencyForm.password}
+   407→                      onChange={(e) => setAgencyForm({ ...agencyForm, password: e.target.value })}
+   408→                      className="bg-white dark:bg-slate-700 border-slate-200 dark:border-slate-600 text-slate-800 dark:text-white"
+   409→                    />
+   410→                  </div>
+   411→                  <div className="space-y-2">
+   412→                    <Label className="text-slate-700 dark:text-slate-300">Confirmer *</Label>
+   413→                    <Input
+   414→                      type="password"
+   415→                      placeholder="Confirmer le mot de passe"
+   416→                      value={agencyForm.confirmPassword}
+   417→                      onChange={(e) => setAgencyForm({ ...agencyForm, confirmPassword: e.target.value })}
+   418→                      className="bg-white dark:bg-slate-700 border-slate-200 dark:border-slate-600 text-slate-800 dark:text-white"
+   419→                    />
+   420→                  </div>
+   421→                </div>
+   422→                <Button
+   423→                  className="w-full bg-blue-600 hover:bg-blue-700 text-white rounded-xl"
+   424→                  onClick={handleCreateAgency}
+   425→                  disabled={agencyCreating}
+   426→                >
+   427→                  {agencyCreating ? 'Création en cours...' : "Créer l'agence"}
+   428→                </Button>
+   429→              </div>
+   430→            </DialogContent>
+   431→          </Dialog>
+   432→        </div>
+   433→      </div>
+   434→
+   435→      {/* Edit Dialog */}
+   436→      <Dialog open={editDialogOpen} onOpenChange={setEditDialogOpen}>
+   437→        <DialogContent className="bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-800 dark:text-white">
+   438→          <DialogHeader>
+   439→            <DialogTitle>Modifier l&apos;agence</DialogTitle>
+   440→          </DialogHeader>
+   441→          <div className="space-y-4 pt-4">
+   442→            {editError && (
+   443→              <div className="bg-red-50 dark:bg-red-900/30 border border-red-200 dark:border-red-800 text-red-600 dark:text-red-400 px-4 py-3 rounded-xl text-sm">
+   444→                {editError}
+   445→              </div>
+   446→            )}
+   447→            {editSuccess && (
+   448→              <div className="bg-emerald-50 dark:bg-emerald-900/30 border border-emerald-200 dark:border-emerald-800 text-emerald-600 dark:text-emerald-400 px-4 py-3 rounded-xl text-sm flex items-center gap-2">
+   449→                <CheckCircle className="w-4 h-4" />
+   450→                {editSuccess}
+   451→              </div>
+   452→            )}
+   453→            <div className="space-y-2">
+   454→              <Label className="text-slate-700 dark:text-slate-300">Nom de l&apos;agence *</Label>
+   455→              <Input
+   456→                placeholder="Ashraf Voyages"
+   457→                value={editForm.name}
+   458→                onChange={(e) => {
+   459→                  const name = e.target.value;
+   460→                  setEditForm({
+   461→                    ...editForm,
+   462→                    name,
+   463→                    slug: name.toLowerCase().replace(/\s+/g, '_').replace(/[^a-z0-9_]/g, '')
+   464→                  });
+   465→                }}
+   466→                className="bg-white dark:bg-slate-700 border-slate-200 dark:border-slate-600 text-slate-800 dark:text-white"
+   467→              />
+   468→            </div>
+   469→            <div className="space-y-2">
+   470→              <Label className="text-slate-700 dark:text-slate-300">Slug *</Label>
+   471→              <Input
+   472→                placeholder="ashraf_voyages"
+   473→                value={editForm.slug}
+   474→                onChange={(e) => setEditForm({ ...editForm, slug: e.target.value })}
+   475→                className="bg-white dark:bg-slate-700 border-slate-200 dark:border-slate-600 text-slate-800 dark:text-white"
+   476→              />
+   477→            </div>
+   478→            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+   479→              <div className="space-y-2">
+   480→                <Label className="text-slate-700 dark:text-slate-300">Email</Label>
+   481→                <Input
+   482→                  type="email"
+   483→                  placeholder="contact@agence.com"
+   484→                  value={editForm.email}
+   485→                  onChange={(e) => setEditForm({ ...editForm, email: e.target.value })}
+   486→                  className="bg-white dark:bg-slate-700 border-slate-200 dark:border-slate-600 text-slate-800 dark:text-white"
+   487→                />
+   488→              </div>
+   489→              <div className="space-y-2">
+   490→                <Label className="text-slate-700 dark:text-slate-300">Téléphone</Label>
+   491→                <Input
+   492→                  placeholder="+33 6 00 00 00 00"
+   493→                  value={editForm.phone}
+   494→                  onChange={(e) => setEditForm({ ...editForm, phone: e.target.value })}
+   495→                  className="bg-white dark:bg-slate-700 border-slate-200 dark:border-slate-600 text-slate-800 dark:text-white"
+   496→                />
+   497→              </div>
+   498→            </div>
+   499→            <div className="flex items-center gap-3 pt-2">
+   500→              <Label className="text-slate-700 dark:text-slate-300">Statut :</Label>
+   501→              <button
+   502→                onClick={() => setEditForm({ ...editForm, active: !editForm.active })}
+   503→                className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors duration-300 ${editForm.active ? 'bg-emerald-500' : 'bg-slate-300 dark:bg-slate-600'}`}
+   504→              >
+   505→                <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform duration-300 ${editForm.active ? 'translate-x-6' : 'translate-x-1'}`} />
+   506→              </button>
+   507→              <span className={`text-sm font-medium ${editForm.active ? 'text-emerald-600' : 'text-slate-400'}`}>
+   508→                {editForm.active ? 'Active' : 'Inactive'}
+   509→              </span>
+   510→            </div>
+   511→
+   512→            {/* Password section */}
+   513→            <div className="pt-4 border-t border-slate-100 dark:border-slate-700">
+   514→              <div className="flex items-center gap-2 mb-3">
+   515→                <div className="w-6 h-6 rounded-lg bg-amber-100 dark:bg-amber-900/30 flex items-center justify-center">
+   516→                  <svg className="w-3.5 h-3.5 text-amber-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" /></svg>
+   517→                </div>
+   518→                <h4 className="text-sm font-semibold text-slate-700 dark:text-slate-300">Changer le mot de passe</h4>
+   519→              </div>
+   520→              <p className="text-xs text-slate-400 mb-3">Laissez vide pour ne pas modifier le mot de passe actuel.</p>
+   521→              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+   522→                <div className="space-y-2">
+   523→                  <Label className="text-slate-700 dark:text-slate-300">Nouveau mot de passe</Label>
+   524→                  <Input
+   525→                    type="password"
+   526→                    placeholder="Min 8 car., 1 maj, 1 chiffre"
+   527→                    value={editForm.newPassword}
+   528→                    onChange={(e) => setEditForm({ ...editForm, newPassword: e.target.value })}
+   529→                    className="bg-white dark:bg-slate-700 border-slate-200 dark:border-slate-600 text-slate-800 dark:text-white"
+   530→                  />
+   531→                </div>
+   532→                <div className="space-y-2">
+   533→                  <Label className="text-slate-700 dark:text-slate-300">Confirmer le mot de passe</Label>
+   534→                  <Input
+   535→                    type="password"
+   536→                    placeholder="Confirmer le nouveau mot de passe"
+   537→                    value={editForm.confirmPassword}
+   538→                    onChange={(e) => setEditForm({ ...editForm, confirmPassword: e.target.value })}
+   539→                    className="bg-white dark:bg-slate-700 border-slate-200 dark:border-slate-600 text-slate-800 dark:text-white"
+   540→                  />
+   541→                </div>
+   542→              </div>
+   543→              {editForm.newPassword && editForm.newPassword.length > 0 && (
+   544→                <div className="mt-3 space-y-1">
+   545→                  <div className={`flex items-center gap-1.5 text-xs ${editForm.newPassword.length >= 8 ? 'text-emerald-500' : 'text-red-400'}`}>
+   546→                    <div className={`w-1.5 h-1.5 rounded-full ${editForm.newPassword.length >= 8 ? 'bg-emerald-500' : 'bg-red-400'}`} />
+   547→                    Au moins 8 caractères
+   548→                  </div>
+   549→                  <div className={`flex items-center gap-1.5 text-xs ${/[A-Z]/.test(editForm.newPassword) ? 'text-emerald-500' : 'text-red-400'}`}>
+   550→                    <div className={`w-1.5 h-1.5 rounded-full ${/[A-Z]/.test(editForm.newPassword) ? 'bg-emerald-500' : 'bg-red-400'}`} />
+   551→                    Au moins une majuscule
+   552→                  </div>
+   553→                  <div className={`flex items-center gap-1.5 text-xs ${/\d/.test(editForm.newPassword) ? 'text-emerald-500' : 'text-red-400'}`}>
+   554→                    <div className={`w-1.5 h-1.5 rounded-full ${/\d/.test(editForm.newPassword) ? 'bg-emerald-500' : 'bg-red-400'}`} />
+   555→                    Au moins un chiffre
+   556→                  </div>
+   557→                  {editForm.confirmPassword && (
+   558→                    <div className={`flex items-center gap-1.5 text-xs ${editForm.newPassword === editForm.confirmPassword ? 'text-emerald-500' : 'text-red-400'}`}>
+   559→                      <div className={`w-1.5 h-1.5 rounded-full ${editForm.newPassword === editForm.confirmPassword ? 'bg-emerald-500' : 'bg-red-400'}`} />
+   560→                      Les mots de passe correspondent
+   561→                    </div>
+   562→                  )}
+   563→                </div>
+   564→              )}
+   565→            </div>
+   566→
+   567→            <Button
+   568→              className="w-full bg-blue-600 hover:bg-blue-700 text-white rounded-xl"
+   569→              onClick={handleSaveEdit}
+   570→              disabled={editSaving}
+   571→            >
+   572→              {editSaving ? (
+   573→                <>
+   574→                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+   575→                  Enregistrement...
+   576→                </>
+   577→              ) : (
+   578→                'Enregistrer les modifications'
+   579→              )}
+   580→            </Button>
+   581→          </div>
+   582→        </DialogContent>
+   583→      </Dialog>
+   584→
+   585→      {/* Success Message */}
+   586→      {successMessage && (
+   587→        <div className="mb-6 bg-emerald-50 dark:bg-emerald-900/30 border border-emerald-200 dark:border-emerald-800 text-emerald-700 dark:text-blue-500 px-4 py-3 rounded-xl flex items-center gap-2">
+   588→          <CheckCircle className="w-5 h-5" />
+   589→          {successMessage}
+   590→        </div>
+   591→      )}
+   592→
+   593→      {/* Stats Cards */}
+   594→      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
+   595→        <Card className="bg-white dark:bg-slate-800 border-slate-100 dark:border-slate-700 shadow-sm rounded-2xl">
+   596→          <CardContent className="p-4">
+   597→            <div className="flex items-center justify-between">
+   598→              <div>
+   599→                <p className="text-slate-500 dark:text-slate-400 text-sm">Total agences</p>
+   600→                <p className="text-3xl font-bold text-slate-800 dark:text-white">{agencies.length}</p>
+   601→              </div>
+   602→              <div className="w-12 h-12 bg-[#2563EB]/10 dark:bg-[#2563EB]/20 rounded-xl flex items-center justify-center">
+   603→                <Building className="w-6 h-6 text-[#2563EB]" />
+   604→              </div>
+   605→            </div>
+   606→          </CardContent>
+   607→        </Card>
+   608→
+   609→        <Card className="bg-white dark:bg-slate-800 border-slate-100 dark:border-slate-700 shadow-sm rounded-2xl">
+   610→          <CardContent className="p-4">
+   611→            <div className="flex items-center justify-between">
+   612→              <div>
+   613→                <p className="text-slate-500 dark:text-slate-400 text-sm">Agences actives</p>
+   614→                <p className="text-3xl font-bold text-slate-800 dark:text-white">{agencies.filter(a => a.active).length}</p>
+   615→              </div>
+   616→              <div className="w-12 h-12 bg-emerald-100 dark:bg-emerald-900/30 rounded-xl flex items-center justify-center">
+   617→                <CheckCircle className="w-6 h-6 text-blue-700 dark:text-blue-500" />
+   618→              </div>
+   619→            </div>
+   620→          </CardContent>
+   621→        </Card>
+   622→      </div>
+   623→
+   624→      {/* Agencies Grid */}
+   625→      {loading ? (
+   626→        <div className="flex items-center justify-center py-12">
+   627→          <div className="w-8 h-8 border-2 border-[#2563EB]/30 border-t-[#2563EB] rounded-full animate-spin" />
+   628→        </div>
+   629→      ) : agencies.length === 0 ? (
+   630→        <div className="text-center py-12 text-slate-500 dark:text-slate-400">Aucune agence</div>
+   631→      ) : (
+   632→        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+   633→          {agencies.map((agency) => (
+   634→            <div key={agency.id} className="bg-white dark:bg-slate-800 rounded-2xl p-5 border border-slate-200 dark:border-slate-700 hover:shadow-md transition-all">
+   635→              {/* Header */}
+   636→              <div className="flex items-start justify-between mb-4">
+   637→                <div className="w-12 h-12 bg-emerald-100 dark:bg-emerald-900/30 rounded-xl flex items-center justify-center">
+   638→                  <Building className="w-6 h-6 text-blue-700 dark:text-blue-500" />
+   639→                </div>
+   640→                <div className="flex items-center gap-2">
+   641→                  <button
+   642→                    onClick={() => handleToggleActive(agency)}
+   643→                    className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors duration-300 ${agency.active ? 'bg-emerald-500' : 'bg-slate-300 dark:bg-slate-600'}`}
+   644→                    title={agency.active ? 'Désactiver' : 'Activer'}
+   645→                  >
+   646→                    <span className={`inline-block h-3.5 w-3.5 transform rounded-full bg-white transition-transform duration-300 ${agency.active ? 'translate-x-5' : 'translate-x-0.5'}`} />
+   647→                  </button>
+   648→                  <Badge className={agency.active ? 'bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-blue-500' : 'bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-400'}>
+   649→                    {agency.active ? 'Actif' : 'Inactif'}
+   650→                  </Badge>
+   651→                </div>
+   652→              </div>
+   653→
+   654→              {/* Name + Slug */}
+   655→              <h3 className="font-semibold text-slate-800 dark:text-white text-lg">{agency.name}</h3>
+   656→              <p className="text-sm text-slate-400 font-mono mb-4">@{agency.slug}</p>
+   657→
+   658→              {/* Contact */}
+   659→              <div className="space-y-2 mb-4">
+   660→                {agency.email && (
+   661→                  <div className="flex items-center gap-2 text-sm text-slate-600 dark:text-slate-300">
+   662→                    <Mail className="w-4 h-4 text-slate-400" />
+   663→                    {agency.email}
+   664→                  </div>
+   665→                )}
+   666→                {agency.phone && (
+   667→                  <div className="flex items-center gap-2 text-sm text-slate-600 dark:text-slate-300">
+   668→                    <Phone className="w-4 h-4 text-slate-400" />
+   669→                    {agency.phone}
+   670→                  </div>
+   671→                )}
+   672→              </div>
+   673→
+   674→              {/* Baggage count */}
+   675→              <div className="flex items-center gap-2 text-sm text-slate-500 dark:text-slate-400 mb-4">
+   676→                <Users className="w-4 h-4" />
+   677→                {agency._count?.baggages || 0} baggages · {agency._count?.users || 0} utilisateur(s)
+   678→              </div>
+   679→
+   680→              {/* Actions */}
+   681→              <div className="flex gap-2 pt-4 border-t border-slate-100 dark:border-slate-700">
+   682→                <Button
+   683→                  size="sm"
+   684→                  variant="ghost"
+   685→                  className="text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded-xl flex-1"
+   686→                  onClick={() => handleOpenEdit(agency)}
+   687→                >
+   688→                  <Edit className="w-4 h-4 mr-1" />
+   689→                  Modifier
+   690→                </Button>
+   691→                <Button
+   692→                  size="sm"
+   693→                  variant="ghost"
+   694→                  className="text-red-500 dark:text-red-400 hover:text-red-600 dark:hover:text-red-300 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-xl flex-1"
+   695→                  onClick={() => handleDeleteAgency(agency.id)}
+   696→                >
+   697→                  <Trash2 className="w-4 h-4 mr-1" />
+   698→                  Supprimer
+   699→                </Button>
+   700→              </div>
+   701→            </div>
+   702→          ))}
+   703→        </div>
+   704→      )}
+   705→    </div>
+   706→  );
+   707→}
+   708→
