@@ -383,3 +383,34 @@ Files Modified:
 - Dockerfile (updated CMD to use init-db.cjs)
 
 Pushed to: github.com/topmuch/qrtagssen (main), github.com/topmuch/qrtagsbis (main)
+
+---
+Task ID: 11
+Agent: Main Agent
+Task: Fix persistent "Identifiants incorrects" - replace self-fetch with inline DB init + password reset
+
+Work Log:
+- User still reported "Identifiants incorrects" after previous fix
+- Root cause identified: the login handler used `fetch(request.nextUrl.origin + '/api/auth/init')` to self-fetch the init endpoint, but this self-fetch doesn't work reliably in Docker environments
+- Additionally, in Docker, the admin user might exist but with a WRONG or NULL password hash (from a previous failed init), which was not handled
+- Created `src/lib/db-init.ts`: shared initialization module that both login and init endpoints use directly (no HTTP fetch)
+  - `ensureTablesExist()`: creates all 16 tables via raw SQL
+  - `ensureAdminUser()`: creates admin OR **resets password if hash doesn't match default**
+  - `initializeDatabase()`: one-time init per process (thread-safe with promise dedup)
+- Rewrote `/api/auth/login/route.ts`:
+  - Calls `initializeDatabase()` DIRECTLY when user not found (no self-fetch)
+  - After init, retries finding the user
+- Rewrote `/api/auth/init/route.ts`:
+  - Uses shared db-init module
+  - Reports admin password reset status
+- Tested scenarios:
+  ✅ Fresh DB (0 tables, 0 admin) → auto-init → login succeeds on first try
+  ✅ DB with admin but WRONG password → init detects mismatch → resets password → login succeeds
+  ✅ DB with correct admin → login succeeds immediately (no re-init)
+
+Files Modified:
+- src/lib/db-init.ts (NEW - shared initialization module)
+- src/app/api/auth/login/route.ts (removed self-fetch, uses inline init)
+- src/app/api/auth/init/route.ts (uses shared module)
+
+Pushed to: github.com/topmuch/qrtagssen (main), github.com/topmuch/qrtagsbis (main)
